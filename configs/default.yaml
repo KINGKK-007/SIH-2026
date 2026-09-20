@@ -1,0 +1,56 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# FoveaMap — default configuration
+# All values are starting points [ASSUMPTION]; tune on training sequences only.
+# ─────────────────────────────────────────────────────────────────────────────
+
+# ── Dataset paths ────────────────────────────────────────────────────────────
+data:
+  root: data/semkitti             # SemanticKITTI root (velodyne/ labels/ poses/)
+  sequence: "08"                  # Evaluation sequence (standard validation split)
+  eval_stride: 5                  # Use every Nth frame for evaluation (E1–E6, E8–E9)
+  latency_clip_len: 500           # Contiguous frames for latency benchmarks (E2)
+
+# ── Grid ─────────────────────────────────────────────────────────────────────
+grid:
+  preset: fovea_4ring             # Which grid config to load from configs/grids/
+  z_range_m: [-3.0, 5.0]         # Velodyne frame; flat ground is near z = -1.73 m
+  max_range_m: 100
+  aggregation: safety_priority    # "safety_priority" | "majority"
+  min_obs_points: 2               # Minimum points for STATIC_OBSTACLE to survive
+  min_dyn_points: 2               # Minimum points for DYNAMIC to survive
+
+# ── Segmenter ─────────────────────────────────────────────────────────────────
+segmenter:
+  name: oracle                    # "frnet" | "cenet" | "salsanext" | "oracle" | "cache"
+  checkpoint: ckpt/frnet_semkitti.pth
+  cache_dir: preds/frnet
+
+# ── Motion module ─────────────────────────────────────────────────────────────
+motion:
+  enabled: true
+  k_scans: [1, 3]                 # Scan lag(s) to use for residual computation
+  residual_thresh: 0.10           # Fraction of range; points above → mover candidate
+  cluster_eps_m: 0.6              # DBSCAN epsilon for mover clustering
+  vote_frac: 0.30                 # Fraction of cluster points that must be candidates
+
+# ── Vehicle parameters ────────────────────────────────────────────────────────
+vehicle:
+  height_m: 2.0                   # Used for clearance layer [ASSUMPTION]
+  max_slope_deg: 15.0             # Traversability threshold [ASSUMPTION]
+  max_step_m: 0.10                # Kerb / step threshold [ASSUMPTION]
+
+# ── Derived layers ────────────────────────────────────────────────────────────
+derive:
+  ground_labels: [40, 44, 48, 49, 60, 72]   # Raw SemanticKITTI IDs for ground
+  overhang_min_height_m: 0.30     # Min height above local ground to count as overhang
+
+# ── Evaluation ────────────────────────────────────────────────────────────────
+eval:
+  range_buckets_m: [0, 10, 30, 60, 100]    # Edges of range evaluation buckets
+  output_dir: results
+
+# ── Visualisation / dashboard ─────────────────────────────────────────────────
+viz:
+  theme: dark
+  dashboard_tech: streamlit
+  demo_fps: 10

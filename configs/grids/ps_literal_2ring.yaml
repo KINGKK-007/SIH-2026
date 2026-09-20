@@ -1,0 +1,31 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Grid preset: ps_literal_2ring
+#
+# Verbatim from the Problem Statement:
+#   "5 cm cells within a 10 m radius; 50 cm cells up to a 100 m radius"
+#
+# Alignment invariants:
+#   I1. Integer nesting: 5→50 cm, ratio = 10 (integer) ✓
+#   I2. Ring boundary 10 m / 0.50 m = 20 (integer multiple of outer cell) ✓
+#
+# Total cells (square rings):
+#   Ring 1: 400×400 = 160,000
+#   Ring 2: 400×400 − 40×40  ≈ 158,400   (coarse ring in ±100 m square, minus ±10 m hole)
+#   Total ≈ 318,400
+# ─────────────────────────────────────────────────────────────────────────────
+
+preset: ps_literal_2ring
+
+rings:
+  - cell_m: 0.05          # Ring 1 — 5 cm
+    half_extent_m: 10.0
+
+  - cell_m: 0.50          # Ring 2 — 50 cm
+    half_extent_m: 100.0
+
+z_range_m: [-3.0, 5.0]
+max_range_m: 100
+ring_shape: square
+aggregation: safety_priority
+min_obs_points: 2
+min_dyn_points: 2

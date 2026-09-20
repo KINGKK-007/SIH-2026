@@ -1,0 +1,57 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "foveamap"
+version = "0.1.0"
+description = "Foveated 2.5D LiDAR semantic mapping: sharp where a mistake hurts, cheap where it doesn't."
+readme = "README.md"
+license = { file = "LICENSE" }
+authors = [{ name = "Kanav Kumar" }]
+requires-python = ">=3.10"
+keywords = ["lidar", "autonomous-driving", "semantic-segmentation", "occupancy-grid"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python :: 3",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+dependencies = [
+    "numpy>=1.24",
+    "scipy>=1.10",
+    "pyyaml>=6.0",
+    "click>=8.1",
+    "numba>=0.58",
+    "matplotlib>=3.7",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4",
+    "pytest-cov>=4.1",
+    "ruff>=0.4",
+]
+viz = [
+    "streamlit>=1.32",
+    "plotly>=5.20",
+]
+
+[project.scripts]
+foveamap = "foveamap.cli:cli"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/foveamap"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-v --tb=short"
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "N"]
+ignore = ["E501"]

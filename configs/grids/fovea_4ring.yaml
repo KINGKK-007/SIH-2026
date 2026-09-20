@@ -1,0 +1,36 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Grid preset: fovea_4ring  (FoveaMap default)
+#
+# Nested square clipmap with 4 rings, power-of-2 cell-size ratios.
+# Cell sizes are chosen to match the physical angular resolution of a
+# Velodyne HDL-64E: dense near the ego vehicle, coarsening at distance.
+#
+# Alignment invariants:
+#   I1. Integer nesting: 5→10→20→40 cm, each ratio = 2 (integer) ✓
+#   I2. Ring boundaries (10/30/60/100 m) are integer multiples of the
+#       outer cell size of that ring or the next finer ring ✓
+#
+# Total cells: ~910,000  (vs 16,000,000 for uniform 5 cm → 17.6× fewer)
+# ─────────────────────────────────────────────────────────────────────────────
+
+preset: fovea_4ring
+
+rings:
+  - cell_m: 0.05          # Ring 1 — 5 cm cells
+    half_extent_m: 10.0   # Covers ±10 m (Chebyshev); 400×400 = 160,000 cells
+
+  - cell_m: 0.10          # Ring 2 — 10 cm cells
+    half_extent_m: 30.0   # Covers ±30 m; (600×600 − 200×200) = 320,000 cells in ring
+
+  - cell_m: 0.20          # Ring 3 — 20 cm cells
+    half_extent_m: 60.0   # Covers ±60 m; (600×600 − 300×300) = 270,000 cells in ring
+
+  - cell_m: 0.40          # Ring 4 — 40 cm cells
+    half_extent_m: 100.0  # Covers ±100 m; (500×500 − 300×300) = 160,000 cells in ring
+
+z_range_m: [-3.0, 5.0]
+max_range_m: 100
+ring_shape: square        # "square" | "circular"
+aggregation: safety_priority
+min_obs_points: 2
+min_dyn_points: 2

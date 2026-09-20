@@ -1,0 +1,3 @@
+# results directory
+# Committed: small JSON/PNG/MP4/GIF produced by foveamap bench / render
+# Gitignored: results/raw/ and large CSV files

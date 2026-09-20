@@ -1,0 +1,22 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Grid preset: uniform_20cm
+#
+# Single-ring uniform 20 cm grid over ±100 m square.
+# Used as the cheap uniform baseline in E3, E4, E9.
+#
+# Total cells: 1000×1000 = 1,000,000
+# At 8 bytes/cell: 8 MB (dense array)
+# ─────────────────────────────────────────────────────────────────────────────
+
+preset: uniform_20cm
+
+rings:
+  - cell_m: 0.20
+    half_extent_m: 100.0
+
+z_range_m: [-3.0, 5.0]
+max_range_m: 100
+ring_shape: square
+aggregation: safety_priority
+min_obs_points: 2
+min_dyn_points: 2
