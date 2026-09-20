@@ -17,9 +17,9 @@ T5  Partition/tile    — union of ring masks covers the plane; intersection emp
 
 from __future__ import annotations
 
+import itertools
 import math
 import os
-import itertools
 
 import numpy as np
 import pytest
@@ -27,10 +27,8 @@ import pytest
 # Force NumPy path so these tests never require Numba compilation
 os.environ.setdefault("FOVEAMAP_NO_NUMBA", "1")
 
-from foveamap.grid.spec import Ring, GridSpec
 from foveamap.grid.clipmap import ClipmapGrid
-from foveamap.grid.layers import FLAG_OBSERVED
-
+from foveamap.grid.spec import GridSpec, Ring
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Shared fixtures

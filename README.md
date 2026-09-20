@@ -1,3 +1,4 @@
+
 # FoveaMap — Adaptive Variable-Resolution 2.5D LiDAR Mapping
 
 **Smart India Hackathon 2026 · Problem Statement SIH26053**

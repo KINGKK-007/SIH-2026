@@ -21,20 +21,19 @@ import numpy as np
 import pytest
 
 from foveamap.io.labels import (
+    _CLS19_TO_SUPER,
+    _RAW_TO_SUPER,
     DRIVABLE,
     DYNAMIC,
     NON_DRIVABLE_TERRAIN,
     STATIC_OBSTACLE,
     UNKNOWN,
-    _CLS19_TO_SUPER,
-    _RAW_TO_SUPER,
     cls19_to_superclass,
     superclass_histogram,
     to_19class,
     to_superclass,
     unpack_kitti_labels,
 )
-
 
 # ─────────────────────────────────────────────────────────────────────────────
 # R1 — Bit-unpacking correctness

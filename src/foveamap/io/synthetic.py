@@ -47,7 +47,6 @@ from __future__ import annotations
 import numpy as np
 from numpy.typing import NDArray
 
-
 # Sensor mount height above flat ground (Velodyne frame)
 _SENSOR_HEIGHT_M: float = 1.73
 

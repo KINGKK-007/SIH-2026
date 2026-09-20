@@ -28,25 +28,22 @@ Usage (oracle mode)
 from __future__ import annotations
 
 import time
-from dataclasses import dataclass, field
 from typing import Any
 
 import numpy as np
 from numpy.typing import NDArray
 
-from foveamap.grid.spec import GridSpec, Ring
+from foveamap.grid.aggregate import scatter_reduce
 from foveamap.grid.layers import (
-    LAYER_NAMES,
-    LAYER_DTYPES,
     BYTES_PER_CELL,
     BYTES_PER_CELL_TARGET,
-    make_ring_arrays,
-    make_accum_arrays,
-    apply_safety_priority,
+    LAYER_NAMES,
     apply_majority,
+    apply_safety_priority,
+    make_accum_arrays,
+    make_ring_arrays,
 )
-from foveamap.grid.aggregate import scatter_reduce
-
+from foveamap.grid.spec import GridSpec, Ring
 
 # ─────────────────────────────────────────────────────────────────────────────
 # ClipmapGrid
@@ -99,7 +96,7 @@ class ClipmapGrid:
         vru: NDArray[np.bool_],
         conf: NDArray[np.float16],
         spec: GridSpec,
-    ) -> "ClipmapGrid":
+    ) -> ClipmapGrid:
         """Bin a classified point cloud into the nested grid.
 
         Parameters
@@ -361,7 +358,7 @@ class ClipmapGrid:
         half_extent_m: float,
         z_range_m: tuple[float, float] = (-3.0, 5.0),
         aggregation: str = "safety_priority",
-    ) -> "ClipmapGrid":
+    ) -> ClipmapGrid:
         """Build a single-ring uniform baseline grid.
 
         Uses exactly the same engine as the foveated multi-ring build, so

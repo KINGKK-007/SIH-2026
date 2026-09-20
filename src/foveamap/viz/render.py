@@ -19,9 +19,7 @@ from __future__ import annotations
 
 import io
 import os
-import warnings
 from pathlib import Path
-from typing import Literal
 
 import numpy as np
 from numpy.typing import NDArray
@@ -31,23 +29,19 @@ if os.environ.get("DISPLAY") is None and os.environ.get("MPLBACKEND") is None:
     import matplotlib
     matplotlib.use("Agg")
 
-import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
-import matplotlib.colors as mcolors
+import matplotlib.pyplot as plt
 from matplotlib.figure import Figure
-from matplotlib.axes import Axes
 
 from foveamap.grid.clipmap import ClipmapGrid
 from foveamap.grid.layers import FLAG_OBSERVED, FLAG_TRAVERSABLE
+from foveamap.io.labels import DRIVABLE, DYNAMIC, NON_DRIVABLE_TERRAIN, STATIC_OBSTACLE, UNKNOWN
 from foveamap.viz.palette import (
     HEX,
-    RGB_FLOAT,
     SUPERCLASS_LABEL,
-    cls_to_rgb,
     alpha_composite_unobserved,
-    PALETTE_LUT,
+    cls_to_rgb,
 )
-from foveamap.io.labels import DRIVABLE, DYNAMIC, NON_DRIVABLE_TERRAIN, STATIC_OBSTACLE, UNKNOWN
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Ring-boundary style
@@ -382,7 +376,6 @@ def fig_to_numpy(fig: Figure) -> NDArray[np.uint8]:
     buf = io.BytesIO()
     fig.savefig(buf, format="png", bbox_inches="tight", facecolor=fig.get_facecolor())
     buf.seek(0)
-    import struct
     data = buf.read()
     buf.close()
     # Re-open as array using matplotlib

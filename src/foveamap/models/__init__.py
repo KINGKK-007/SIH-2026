@@ -11,9 +11,9 @@ frnet   : FRNet range-view network (Phase 3 — stub for now).
 cenet   : CENet range-view network (Phase 3 — stub for now).
 """
 
-from foveamap.models.base import SegOutput, Segmenter
-from foveamap.models.oracle import OracleSegmenter
+from foveamap.models.base import Segmenter, SegOutput
 from foveamap.models.cache import CacheSegmenter
+from foveamap.models.oracle import OracleSegmenter
 
 __all__ = [
     "SegOutput",

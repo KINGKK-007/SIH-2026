@@ -8,7 +8,7 @@ layers   : Cell constants, dtypes, flag bits, aggregation rules.
 aggregate: Numba scatter-reduce kernel.
 """
 
-from foveamap.grid.spec import Ring, GridSpec
 from foveamap.grid.clipmap import ClipmapGrid
+from foveamap.grid.spec import GridSpec, Ring
 
 __all__ = ["Ring", "GridSpec", "ClipmapGrid"]

@@ -11,15 +11,15 @@ Tests verify that:
 from __future__ import annotations
 
 import os
-import pytest
+
 import numpy as np
+import pytest
 
 os.environ.setdefault("FOVEAMAP_NO_NUMBA", "1")
 
-from foveamap.grid.spec import Ring, GridSpec
 from foveamap.grid.clipmap import ClipmapGrid
 from foveamap.grid.layers import BYTES_PER_CELL, BYTES_PER_CELL_TARGET
-
+from foveamap.grid.spec import GridSpec, Ring
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Specs (matching §5.5 table)

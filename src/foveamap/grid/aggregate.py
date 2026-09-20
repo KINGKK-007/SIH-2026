@@ -32,22 +32,17 @@ import os
 import numpy as np
 from numpy.typing import NDArray
 
+from foveamap.grid.layers import (
+    FLAG_MOVING,
+    FLAG_OBSERVED,
+    FLAG_VRU,
+    OVERHANG_HEIGHT_THRESH_M,
+)
 from foveamap.io.labels import (
     DRIVABLE,
     DYNAMIC,
     NON_DRIVABLE_TERRAIN,
     STATIC_OBSTACLE,
-    UNKNOWN,
-)
-from foveamap.grid.layers import (
-    FLAG_MOVING,
-    FLAG_VRU,
-    FLAG_OBSERVED,
-    MOVING_RAW_ID_MIN,
-    MOVING_RAW_ID_MAX,
-    VRU_RAW_IDS,
-    OBSTACLE_HEIGHT_THRESH_M,
-    OVERHANG_HEIGHT_THRESH_M,
 )
 
 # ─────────────────────────────────────────────────────────────────────────────

@@ -287,3 +287,107 @@ matching master plan §5.5 table). This was verified in the integration test.
 
 This makes oracle-mode grid builds one line of code and avoids duplicate
 label-processing logic in calling code.
+
+---
+
+## ADR-016 — `CacheSegmenter`: Decoupling GPU inference via precomputed predictions
+
+**Date:** 2026-09-20
+**Phase:** P3
+
+**Decision:**
+`CacheSegmenter` implements the `Segmenter` Protocol (`name: str`, `__call__(points) -> SegOutput`)
+and loads precomputed semantic predictions from `.npy` (19-class benchmark IDs or raw IDs)
+or `.label` (SemanticKITTI format) files alongside confidence scores (`*_conf.npy`).
+
+**Reason:**
+Fulfills master plan §4.3 (design idea 2) to decouple foveated grid validation,
+motion detection, and metric evaluation from GPU inference. Any downstream pipeline
+can run on standard CPU workstations.
+
+---
+
+## ADR-017 — Geometric motion detection via relative ego-compensation and DBSCAN clustering
+
+**Date:** 2026-09-20
+**Phase:** P4
+
+**Decision:**
+Scan-to-scan motion detection is implemented geometrically:
+1. Scan $t-1$ is transformed into frame $t$ using $T_{rel} = T_{velo}(t)^{-1} \cdot T_{velo}(t-1)$.
+2. A `scipy.spatial.cKDTree` on compensated points computes nearest-neighbor distances
+   for current scan points. Residuals $> 0.5\text{ m}$ flag `motion_candidates`.
+3. Motion candidates are filtered by movable classes (vehicles, pedestrians, cyclists).
+4. `sklearn.cluster.DBSCAN` (`eps=0.7`, `min_samples=10`) groups candidate points into
+   confirmed clusters and produces 3D Axis-Aligned Bounding Boxes (`ObjectBox`).
+
+---
+
+## ADR-018 — Range-stratified evaluation binned to clipmap ring boundaries
+
+**Date:** 2026-09-20
+**Phase:** P3 / P4
+
+**Decision:**
+Evaluation metrics (`compute_accuracy_by_range`, `compute_iou_by_range`) partition
+points into distance bins matching the FoveaMap ring boundaries:
+`[0-10m, 10-30m, 30-60m, 60-100m, overall]`.
+Chebyshev distance $\max(|x|, |y|)$ is supported as the default to match the
+square nested clipmaps, alongside Euclidean distance. Metrics format clean ASCII tables
+and convert seamlessly to pandas DataFrames for the dashboard.
+
+---
+
+## ADR-019 — Synthetic hazard injection for terrain & clearance evaluation
+
+**Date:** 2026-09-20
+**Phase:** P5
+
+**Decision:**
+`inject_synthetic_hazards` programmatically modifies point clouds to inject:
+1. Pothole: drops ground $z$ by 15 cm within a 1.0 m radius disc.
+2. Kerb: raises ground $z$ by 20 cm along a linear boundary strip.
+3. Overhang: inserts synthetic points at 1.5 m above ground ($< 2.0\text{ m}$ vehicle height)
+   directly in the ego travel corridor.
+
+**Reason:**
+SemanticKITTI lacks ground truth annotations for pothole depth, kerb step height,
+and low overhead obstacles. Injecting calibrated geometric anomalies allows rigorous
+verification of derived safety layers and resolution limits.
+
+---
+
+## ADR-020 — Vectorized geometric derived safety layers
+
+**Date:** 2026-09-20
+**Phase:** P5
+
+**Decision:**
+Derived safety layers (`slope`, `step_height`, `clearance`, `traversability`) are
+computed using pure vectorised 2D NumPy operations per ring:
+- Slope: $\arctan(\sqrt{g_x^2 + g_y^2})$ using central/forward differences with ring cell size.
+- Step height: maximum absolute elevation difference across 8 adjacent neighbors.
+- Clearance: headway clearance $Z_{overhang} - Z_{ground}$ (default 10 m when clear).
+- Traversability: boolean passability mask enforcing `cls == DRIVABLE`, slope $< 15^\circ$,
+  step $< 10\text{ cm}$, and clearance $\ge 2.0\text{ m}$.
+
+**Reason:**
+Vectorised NumPy avoids Numba threading contention inside grid finalisation while
+executing in $< 2\text{ ms}$ per ring on CPU.
+
+---
+
+## ADR-021 — Multi-panel dashboard and video generation via `imageio-ffmpeg`
+
+**Date:** 2026-09-20
+**Phase:** P6 / P7
+
+**Decision:**
+The publication-ready demo video (`foveamap demo`) uses a 16:9 dark-themed multi-panel
+dashboard layout rendered at $1600 \times 960$ (divisible by macro-block size 16):
+- Left panel: top-down foveated map with nested ring boundaries, car marker, and moving AABB boxes.
+- Top-right panel: memory footprint log-scale bar chart and system latency telemetry.
+- Bottom-right panel: range-stratified accuracy and mIoU bar chart.
+Rendered frames are directly encoded to MP4 video using `imageio` with bundled `imageio-ffmpeg`.
+
+

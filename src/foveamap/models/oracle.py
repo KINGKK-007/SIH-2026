@@ -38,12 +38,11 @@ from __future__ import annotations
 import numpy as np
 from numpy.typing import NDArray
 
-from foveamap.models.base import SegOutput
 from foveamap.io.labels import (
-    unpack_kitti_labels,
     to_superclass,
+    unpack_kitti_labels,
 )
-
+from foveamap.models.base import SegOutput
 
 # Raw IDs 252–259 are the SemanticKITTI "moving-*" variants.
 _MOVING_MIN: int = 252

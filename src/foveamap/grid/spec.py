@@ -26,13 +26,11 @@ Examples
 
 from __future__ import annotations
 
-import math
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 import yaml
-
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Ring
@@ -192,7 +190,7 @@ class GridSpec:
     # ── Factory methods ───────────────────────────────────────────────────────
 
     @classmethod
-    def from_dict(cls, d: dict[str, Any]) -> "GridSpec":
+    def from_dict(cls, d: dict[str, Any]) -> GridSpec:
         """Build a :class:`GridSpec` from a parsed YAML dictionary.
 
         Parameters
@@ -221,7 +219,7 @@ class GridSpec:
         )
 
     @classmethod
-    def from_yaml(cls, yaml_path: str | Path) -> "GridSpec":
+    def from_yaml(cls, yaml_path: str | Path) -> GridSpec:
         """Load a :class:`GridSpec` from a YAML config file.
 
         Parameters
@@ -268,10 +266,10 @@ class GridSpec:
 
 #: Hard-coded fallback specs for every named preset.
 #: Used when the YAML config files are not found (e.g., during testing).
-_PRESET_DEFAULTS: dict[str, "GridSpec"] = {}  # populated below after class definition
+_PRESET_DEFAULTS: dict[str, GridSpec] = {}  # populated below after class definition
 
 
-def load_spec_from_preset(preset: str) -> "GridSpec":
+def load_spec_from_preset(preset: str) -> GridSpec:
     """Load a :class:`GridSpec` by preset name.
 
     Searches for ``configs/grids/<preset>.yaml`` relative to the current

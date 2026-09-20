@@ -23,7 +23,6 @@ from numpy.typing import NDArray
 
 from foveamap.io.labels import DRIVABLE, DYNAMIC, NON_DRIVABLE_TERRAIN, STATIC_OBSTACLE, UNKNOWN
 
-
 # ─────────────────────────────────────────────────────────────────────────────
 # Hex colours (from master plan §5.1)
 # ─────────────────────────────────────────────────────────────────────────────

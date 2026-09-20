@@ -26,7 +26,6 @@ import pytest
 
 from foveamap.io.kitti import load_labels, load_velodyne_bin
 
-
 # ─────────────────────────────────────────────────────────────────────────────
 # Helpers (no logic hidden behind pass)
 # ─────────────────────────────────────────────────────────────────────────────
@@ -304,8 +303,8 @@ class TestSyntheticScan:
 
     def test_z_ground_near_minus_1_73(self) -> None:
         """Ground points (label 40 = road) must cluster near z ≈ −1.73 m."""
-        from foveamap.io.synthetic import generate_synthetic_scan
         from foveamap.io.labels import unpack_kitti_labels
+        from foveamap.io.synthetic import generate_synthetic_scan
         pts, labels = generate_synthetic_scan(num_points=20_000)
         sem, _ = unpack_kitti_labels(labels)
         road_mask = sem == 40
@@ -375,48 +374,52 @@ class TestSyntheticScan:
     # ── R7: Super-class coverage ───────────────────────────────────────────
 
     def test_contains_drivable(self) -> None:
+        from foveamap.io.labels import DRIVABLE, to_superclass, unpack_kitti_labels
         from foveamap.io.synthetic import generate_synthetic_scan
-        from foveamap.io.labels import unpack_kitti_labels, to_superclass, DRIVABLE
         pts, raw = generate_synthetic_scan(num_points=5000)
         sem, _ = unpack_kitti_labels(raw)
         sc = to_superclass(sem)
         n = int(np.sum(sc == DRIVABLE))
-        assert n > 0, f"Expected DRIVABLE points, got 0"
+        assert n > 0, "Expected DRIVABLE points, got 0"
 
     def test_contains_non_drivable_terrain(self) -> None:
+        from foveamap.io.labels import NON_DRIVABLE_TERRAIN, to_superclass, unpack_kitti_labels
         from foveamap.io.synthetic import generate_synthetic_scan
-        from foveamap.io.labels import unpack_kitti_labels, to_superclass, NON_DRIVABLE_TERRAIN
         pts, raw = generate_synthetic_scan(num_points=5000)
         sem, _ = unpack_kitti_labels(raw)
         sc = to_superclass(sem)
         n = int(np.sum(sc == NON_DRIVABLE_TERRAIN))
-        assert n > 0, f"Expected NON_DRIVABLE_TERRAIN points, got 0"
+        assert n > 0, "Expected NON_DRIVABLE_TERRAIN points, got 0"
 
     def test_contains_static_obstacle(self) -> None:
+        from foveamap.io.labels import STATIC_OBSTACLE, to_superclass, unpack_kitti_labels
         from foveamap.io.synthetic import generate_synthetic_scan
-        from foveamap.io.labels import unpack_kitti_labels, to_superclass, STATIC_OBSTACLE
         pts, raw = generate_synthetic_scan(num_points=5000)
         sem, _ = unpack_kitti_labels(raw)
         sc = to_superclass(sem)
         n = int(np.sum(sc == STATIC_OBSTACLE))
-        assert n > 0, f"Expected STATIC_OBSTACLE points, got 0"
+        assert n > 0, "Expected STATIC_OBSTACLE points, got 0"
 
     def test_contains_dynamic(self) -> None:
+        from foveamap.io.labels import DYNAMIC, to_superclass, unpack_kitti_labels
         from foveamap.io.synthetic import generate_synthetic_scan
-        from foveamap.io.labels import unpack_kitti_labels, to_superclass, DYNAMIC
         pts, raw = generate_synthetic_scan(num_points=5000)
         sem, _ = unpack_kitti_labels(raw)
         sc = to_superclass(sem)
         n = int(np.sum(sc == DYNAMIC))
-        assert n > 0, f"Expected DYNAMIC points, got 0"
+        assert n > 0, "Expected DYNAMIC points, got 0"
 
     def test_all_four_superclasses_present(self) -> None:
         """Single call that verifies all 4 super-classes are present."""
-        from foveamap.io.synthetic import generate_synthetic_scan
         from foveamap.io.labels import (
-            DRIVABLE, DYNAMIC, NON_DRIVABLE_TERRAIN, STATIC_OBSTACLE,
-            unpack_kitti_labels, to_superclass,
+            DRIVABLE,
+            DYNAMIC,
+            NON_DRIVABLE_TERRAIN,
+            STATIC_OBSTACLE,
+            to_superclass,
+            unpack_kitti_labels,
         )
+        from foveamap.io.synthetic import generate_synthetic_scan
         pts, raw = generate_synthetic_scan(num_points=10_000)
         sem, _ = unpack_kitti_labels(raw)
         sc = to_superclass(sem)
@@ -433,8 +436,8 @@ class TestSyntheticScan:
 
     def test_no_unknown_points(self) -> None:
         """Synthetic scan must not contain any UNKNOWN points (all IDs are known)."""
+        from foveamap.io.labels import UNKNOWN, to_superclass, unpack_kitti_labels
         from foveamap.io.synthetic import generate_synthetic_scan
-        from foveamap.io.labels import unpack_kitti_labels, to_superclass, UNKNOWN
         pts, raw = generate_synthetic_scan(num_points=5000)
         sem, _ = unpack_kitti_labels(raw)
         sc = to_superclass(sem)
