@@ -16,5 +16,7 @@ class Hazard:
     params: dict[str, float]
 
 
-def inject_hazards(scan: ClassifiedScan, cfg: object, rng: np.random.Generator) -> tuple[ClassifiedScan, list[Hazard]]:
+def inject_hazards(
+    scan: ClassifiedScan, cfg: object, rng: np.random.Generator
+) -> tuple[ClassifiedScan, list[Hazard]]:
     raise NotImplementedError("Implemented in Phase 11, T11.7 (docs/PHASES.md).")

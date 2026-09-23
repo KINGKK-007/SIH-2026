@@ -24,7 +24,9 @@ def _ensure_utf8_stdio() -> None:
 
 def _add_common(p: argparse.ArgumentParser) -> None:
     p.add_argument("--sequence", default="08", help="SemanticKITTI sequence id (default: 08)")
-    p.add_argument("--preset", default=None, help="grid preset name (default: active_preset in configs/grid.yaml)")
+    p.add_argument(
+        "--preset", default=None, help="grid preset name (default: active_preset in configs/grid.yaml)"
+    )
     p.add_argument("--config-dir", default="configs", help="directory holding the YAML configs")
 
 
@@ -32,9 +34,13 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="foveamap", description=__doc__.splitlines()[0])
     parser.add_argument("--version", action="version", version=f"foveamap {__version__}")
     _add_common(parser)
-    parser.add_argument("--mode", choices=["oracle", "cached", "live"], help="run the pipeline/server in this mode")
+    parser.add_argument(
+        "--mode", choices=["oracle", "cached", "live"], help="run the pipeline/server in this mode"
+    )
     parser.add_argument("--model", default=None, help="model name for cached/live modes")
-    parser.add_argument("--dry-run", type=int, default=None, metavar="N", help="process N frames headlessly and exit")
+    parser.add_argument(
+        "--dry-run", type=int, default=None, metavar="N", help="process N frames headlessly and exit"
+    )
 
     sub = parser.add_subparsers(dest="command")
 

@@ -1,4 +1,4 @@
-"""Run the selected model over sequences and write the prediction cache (README 6.3, R13). Implemented in Phase 9, T9.1."""
+"""Write the prediction cache for the selected model (README 6.3, R13). Implemented in Phase 9, T9.1."""
 
 import sys
 
