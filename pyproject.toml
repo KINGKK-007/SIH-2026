@@ -51,7 +51,7 @@ extend-exclude = ["src/foveamap_legacy", "tests/legacy", "src/dashboard"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "N"]
-ignore = ["N802", "N803", "N806"]  # maths names such as Tr, P_i, T_prev_to_cur
+ignore = ["N802", "N803", "N806", "E501"]  # maths names (Tr, P_i); line length is enforced by black
 
 [tool.black]
 line-length = 110
