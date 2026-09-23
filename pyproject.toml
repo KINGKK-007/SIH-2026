@@ -42,10 +42,10 @@ viz = [
 ]
 
 [project.scripts]
-foveamap = "foveamap.cli:cli"
+foveamap-legacy = "foveamap_legacy.cli:cli"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/foveamap"]
+packages = ["src/foveamap_legacy"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
