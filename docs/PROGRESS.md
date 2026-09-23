@@ -50,3 +50,14 @@ python -m pytest -m data -q
 Then paste the summaries here, commit `results/frame_alignment.json`, `results/data_stats.json`,
 `results/tables/data_stats.md` and the plots, and tag `phase-2-complete`, `phase-3-complete`, `phase-4-complete`.
 If Gate 4 is not PASS, do not raise the threshold (R2): the transform is wrong; see `foveamap.eval.alignment`.
+
+## Phase 5 — Grid Core
+
+- 2026-09-24 · T5.1 · e145a58 · presets, V1–V5, closed-form counts (fovea_default 910,000 logical / 1,130,000 allocated asserted by test, not typed in code).
+- 2026-09-24 · T5.2 · b6f09e8 · integer-only addressing; I2 on boundary-adversarial points, I5 exhaustive on tiny presets.
+- 2026-09-24 · T5.3 · 779ad77 · NumPy reference rasteriser, sparse accumulators (D-019); I1, I10. Grid-stage time on this laptop ~57 ms per 120k points (> 15 ms budget → T7.5 fast path).
+
+### Gate 5 — passed 2026-09-24
+
+`pytest tests/grid/test_presets.py tests/grid/test_addressing.py tests/grid/test_conservation.py -q`: 55 passed (V1–V5, I1, I2, I5, I10; code-computed counts equal the closed forms).
+Built before Gate 4 (D-020).
