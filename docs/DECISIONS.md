@@ -1,0 +1,16 @@
+# Deviation and decision log
+
+Format (README R6): `D-### · YYYY-MM-DD · Phase · what changed · why · impact`.
+The v0 architecture decision records are archived in `archive/DECISIONS_v0.md`.
+
+- D-001 · 2026-09-23 · 1 · Python package lives under `src/foveamap/` instead of flat `src/`; `src/main.py` is a shim calling `foveamap.cli.main()` · README 4.4 documents `python src/main.py`, and a src-layout package is installable with `pip install -e .` · none; both entry points work.
+- D-002 · 2026-09-23 · 1 · Dashboard uses Vite instead of Create-React-App · CRA is deprecated (L13) · `npm run dev` replaces `npm start`.
+- D-003 · 2026-09-23 · 1 · Phase numbering and task IDs follow `docs/PHASES.md` (15 phases), which supersedes README Section 10 (Phases 0–8); checkboxes are ticked in `docs/PHASES.md` · the team works from the 15-phase plan · README "Section 10" references mean `docs/PHASES.md`.
+- D-004 · 2026-09-23 · 1 · The v0 implementation (built from the earlier 9-phase master plan: float-metre grid, 17-byte cells, Streamlit/matplotlib demo) moves to `src/foveamap_legacy` with its 311 tests in `tests/legacy` instead of being deleted · the spec requires integer-mm addressing, 12-byte cells and a different module layout, but the v0 code is useful reference for motion, derived layers and hazards · legacy tests run in `make test`; lint/typecheck skip legacy; legacy is removed once every module is ported (target: Phase 15).
+- D-005 · 2026-09-23 · 1 · One development machine is native Windows 11 (no WSL, no NVIDIA GPU, `mingw32-make` + Git Bash) rather than Ubuntu/WSL2 (README 4.1) · team split: GPU/data work runs on a teammate's machine · the Makefile and scripts are written to run on both; GPU checks are warnings on this machine.
+- D-006 · 2026-09-23 · 1 · Script flags pass through make as `make doctor ARGS="--require-data"` (PHASES Gate 2 writes `make doctor --require-data`, which make would parse as its own option) · make syntax · gate commands use the `ARGS=` form; `python scripts/doctor.py --require-data` is equivalent.
+- D-007 · 2026-09-23 · 1 · `requirements.txt` adds developer tools (ruff, black, mypy, pytest-cov, types-PyYAML) to the README 4.5 list · `make lint/format/typecheck` need them · slightly larger install.
+- D-008 · 2026-09-23 · 1 · `requirements.lock` is platform-specific (it records the torch wheel of the machine that produced it) · one lock cannot serve Windows-CPU and Linux-CUDA · the lock header states its platform; other machines install from `requirements.txt` and may regenerate the lock.
+- D-009 · 2026-09-23 · 1 · pytest runs with `--import-mode=importlib` · README 11.2 places same-named test modules in several subfolders (and `tests/legacy` repeats names) · no `__init__.py` needed in test folders.
+- D-010 · 2026-09-23 · 1 · `.gitattributes` forces LF line endings · mixed Windows/macOS team; avoids whole-file CRLF diffs · none.
+- D-011 · 2026-09-23 · 1 · Project licence changed from Apache-2.0 (v0 ADR-005) to MIT · README L13/Section 18 and the team's decision · `LICENSE`, `pyproject.toml` updated; third-party licences are audited in Phase 15.

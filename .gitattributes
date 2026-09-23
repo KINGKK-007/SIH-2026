@@ -1,0 +1,7 @@
+# Mixed Windows/macOS team: keep LF in the repository and working trees (D-010).
+* text=auto eol=lf
+*.png binary
+*.jpg binary
+*.webp binary
+*.mp4 binary
+*.npz binary
