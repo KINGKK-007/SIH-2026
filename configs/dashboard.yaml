@@ -1,0 +1,8 @@
+# Dashboard server and client (README 8.7, 13).
+host: 0.0.0.0
+port: 8000
+target_display_fps: 10
+playback_fps: 10
+texture_format: webp           # webp | png
+show_gt_overlay: false
+theme: dark

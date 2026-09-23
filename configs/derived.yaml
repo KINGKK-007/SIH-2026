@@ -1,0 +1,10 @@
+# Derived geometric layers (README 8.4, 6.7).
+max_slope_deg: 15.0
+kerb_min_m: 0.06
+kerb_max_m: 0.25
+obstacle_step_m: 0.30
+min_points_step: 2
+vehicle_height_m: 2.0
+clearance_margin_m: 0.2
+halo: true
+fill_missing_ground: false    # optional inpainting of empty ground cells (off by default)

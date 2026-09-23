@@ -1,0 +1,27 @@
+# README Section 4.5. Exact versions are pinned in requirements.lock after the first install.
+numpy
+scipy
+numba            # optional CPU acceleration for reference paths
+pyyaml
+pydantic>=2
+torch            # install the CUDA build matching the driver (CPU build is fine without a GPU)
+tqdm
+psutil
+pandas
+matplotlib
+scikit-learn     # DBSCAN / clustering
+opencv-python    # rendering, video frames
+imageio[ffmpeg]
+fastapi
+uvicorn[standard]
+python-socketio
+pytest
+hypothesis
+pybind11         # only for the optional C++ backend
+
+# Developer tools used by make lint/format/typecheck/test (D-007)
+ruff
+black
+mypy
+pytest-cov
+types-PyYAML

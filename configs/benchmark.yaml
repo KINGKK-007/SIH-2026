@@ -1,0 +1,10 @@
+# Benchmark suite (README 8.6, 12).
+sequence: "08"
+frame_stride: 1               # use >1 for heavy metrics; must be stated in reports
+latency: { warmup: 50, frames: 1000, budget_ms: 100.0 }
+buckets_m: [0, 10, 30, 60, 100]
+presets: [fovea_default, ps_literal, uniform_5cm, uniform_20cm]
+sweep:                        # memory-vs-accuracy trade-off explorer
+  ring_radii_m:  [[10,30,60,100], [5,20,50,100], [15,40,70,100], [20,50,80,100]]
+  cell_sizes_m:  [[0.05,0.10,0.20,0.40], [0.10,0.20,0.40,0.80], [0.05,0.05,0.10,0.20], [0.05,0.10,0.50,0.50]]   # combos failing V1-V5 are skipped and logged
+output_dir: results
