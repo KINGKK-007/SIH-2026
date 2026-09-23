@@ -1,0 +1,26 @@
+# Grid engine (README 8.1). Lengths in metres; the loader converts them to integer millimetres (L6).
+# Values marked (tune) are tuned once on sequences 04/07 and then frozen (L2).
+backend: auto                 # auto | numpy | cpp
+extent_m: 100.0               # R_last (informational; must equal the last ring's r_max)
+min_range_m: 1.0              # drop returns closer than this (ego body)
+z_range_m: [-3.0, 5.0]        # used only for 3D-memory accounting
+bytes_per_voxel: 1
+class_rule: safety            # safety | majority
+class_thresholds:             # (tune)
+  dyn_min_points: 2
+  dyn_min_frac: 0.20
+  obs_min_points: 2
+  obs_min_frac: 0.20
+contact_height_m: 0.30        # grounded-obstacle vs overhang split
+ground_estimator: mean        # mean (exactly reducible) | min
+presets:
+  fovea_default:
+    rings: [ {r: 10,  cell: 0.05}, {r: 30, cell: 0.10}, {r: 60, cell: 0.20}, {r: 100, cell: 0.40} ]
+  ps_literal:
+    rings: [ {r: 10,  cell: 0.05}, {r: 100, cell: 0.50} ]
+  uniform_5cm:  { rings: [ {r: 100, cell: 0.05} ] }
+  uniform_20cm: { rings: [ {r: 100, cell: 0.20} ] }
+  uniform_40cm: { rings: [ {r: 100, cell: 0.40} ] }
+  tiny_test:    { rings: [ {r: 2, cell: 0.05}, {r: 6, cell: 0.10}, {r: 12, cell: 0.20} ] }
+  tiny_ps_test: { rings: [ {r: 2, cell: 0.05}, {r: 12, cell: 0.50} ] }
+active_preset: fovea_default
