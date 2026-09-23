@@ -24,7 +24,9 @@ class FrameResult:
 
 
 class PipelineRunner:
-    def __init__(self, mode: Literal["oracle", "cached", "live"], model: object, preset: GridSpec, cfgs: object) -> None:
+    def __init__(
+        self, mode: Literal["oracle", "cached", "live"], model: object, preset: GridSpec, cfgs: object
+    ) -> None:
         raise NotImplementedError("Implemented in Phase 7, T7.2 (docs/PHASES.md).")
 
     def process(self, seq: Sequence, idx: int) -> FrameResult:

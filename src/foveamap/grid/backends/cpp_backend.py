@@ -11,7 +11,7 @@ from foveamap.grid.presets import GridSpec
 def is_available() -> bool:
     """True if the compiled ``foveamap._fovea_cpp`` module imports."""
     try:
-        import foveamap._fovea_cpp  # type: ignore[import-not-found]  # noqa: F401
+        import foveamap._fovea_cpp  # noqa: F401
     except ImportError:
         return False
     return True
