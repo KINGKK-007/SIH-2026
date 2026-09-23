@@ -110,6 +110,19 @@ def _cmd_align(args: argparse.Namespace) -> int:
     return 0 if report["passed"] else 1
 
 
+def _cmd_stats(args: argparse.Namespace) -> int:
+    """T4.2: per-bucket data statistics as JSON and a generated markdown table."""
+    from foveamap.eval.data_stats import data_stats, stats_table_md
+
+    stats = data_stats(args.data_root, args.sequences, stride=args.stride)
+    table = Path(args.table)
+    table.parent.mkdir(parents=True, exist_ok=True)
+    table.write_text(stats_table_md(stats), encoding="utf-8")
+    print(stats_table_md(stats))
+    print(f"wrote {_write_json(args.json, stats)} and {table}")
+    return 0
+
+
 def _cmd_inspect(args: argparse.Namespace) -> int:
     """T2.3: point count, class histogram with names, pose, and a bird's-eye scatter PNG."""
     from foveamap.io.labels import SUPER_CLASS_NAMES, raw_name, raw_to_super, semantic_ids
@@ -158,6 +171,7 @@ COMMANDS = {
     "render": _cmd_render,
     "memory": _cmd_memory,
     "align": _cmd_align,
+    "stats": _cmd_stats,
 }
 
 
