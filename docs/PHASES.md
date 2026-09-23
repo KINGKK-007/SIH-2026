@@ -157,9 +157,9 @@ graph TD
 **Goal:** the nested variable-resolution grid geometry and the NumPy reference rasteriser, all in exact integer arithmetic.
 **Depends on:** Gate 4.
 
-- [ ] **T5.1 (M)** `grid/presets.py`: `RingSpec`, `GridSpec`, `load_preset`, `validate_preset` (V1–V5), `logical_cells`, `allocated_cells`. *Verify:* a failing-preset test for each rule; **counts computed by the code equal the closed-form formulas** for every preset in README Section 6.5.1.
-- [ ] **T5.2 (M)** Addressing (README Section 6.5.3): `quantize_mm`, `world_to_cell`, `cell_to_corner_mm`, `cell_to_center_mm`, all integer-only with floor division. *Verify:* invariants **I2** (exact partition) and **I5** (round trip), including the boundary-adversarial point set (`±R_k`, `±R_k∓1 mm`, exact multiples of every cell size, negative coordinates, the origin).
-- [ ] **T5.3 (L)** `grid/backends/numpy_backend.py` and `accumulators.py`: vectorised `rasterize` producing the integer accumulators of README Section 6.5.4 and the frame counters (`n_raw`, `n_invalid`, `n_in_grid`, `n_out_of_grid`, `n_z_saturated`). *Verify:* **I1** (point conservation) and **I10** (saturation accounting).
+- [x] **T5.1 (M)** `grid/presets.py`: `RingSpec`, `GridSpec`, `load_preset`, `validate_preset` (V1–V5), `logical_cells`, `allocated_cells`. *Verify:* a failing-preset test for each rule; **counts computed by the code equal the closed-form formulas** for every preset in README Section 6.5.1.
+- [x] **T5.2 (M)** Addressing (README Section 6.5.3): `quantize_mm`, `world_to_cell`, `cell_to_corner_mm`, `cell_to_center_mm`, all integer-only with floor division. *Verify:* invariants **I2** (exact partition) and **I5** (round trip), including the boundary-adversarial point set (`±R_k`, `±R_k∓1 mm`, exact multiples of every cell size, negative coordinates, the origin).
+- [x] **T5.3 (L)** `grid/backends/numpy_backend.py` and `accumulators.py`: vectorised `rasterize` producing the integer accumulators of README Section 6.5.4 and the frame counters (`n_raw`, `n_invalid`, `n_in_grid`, `n_out_of_grid`, `n_z_saturated`). *Verify:* **I1** (point conservation) and **I10** (saturation accounting).
 
 **Gate 5:** `pytest tests/grid/test_presets.py tests/grid/test_addressing.py tests/grid/test_conservation.py -q` green (V1–V5, I1, I2, I5, I10; code-computed counts equal closed forms).
 **Time-box & fallback:** 1 day. If pure-NumPy min/max reductions are awkward, use sort-by-index plus `np.minimum.reduceat` / `np.maximum.reduceat`; correctness first, speed is handled later.
@@ -171,8 +171,8 @@ graph TD
 **Goal:** prove that fine→coarse aggregation is exact and order-independent, and derive the packed 12-byte per-cell layers.
 **Depends on:** Gate 5.
 
-- [ ] **T6.1 (M)** `reduce_block` and the consistency suite: **I4** (fine→coarse == direct accumulation, bit-identical, every field, every ring of `tiny_test` and `tiny_ps_test`), **I6** (permutation invariance and determinism), **I7** (differential test against a deliberately naive dict-based Python implementation, including single-ring/uniform presets). Use `hypothesis` with ≥ 200 examples per property and a fixed seed.
-- [ ] **T6.2 (M)** `grid/layers.py`: `finalize` → packed 12-byte layers (README Section 6.6): ground height, top height, overhang clearance, class (`safety` and `majority` rules), moving fraction, count, confidence, flags. *Verify:* hand-built cell fixtures covering every branch (grounded obstacle, overhang, dynamic priority, tie-break, empty cell, `int16` saturation).
+- [x] **T6.1 (M)** `reduce_block` and the consistency suite: **I4** (fine→coarse == direct accumulation, bit-identical, every field, every ring of `tiny_test` and `tiny_ps_test`), **I6** (permutation invariance and determinism), **I7** (differential test against a deliberately naive dict-based Python implementation, including single-ring/uniform presets). Use `hypothesis` with ≥ 200 examples per property and a fixed seed.
+- [x] **T6.2 (M)** `grid/layers.py`: `finalize` → packed 12-byte layers (README Section 6.6): ground height, top height, overhang clearance, class (`safety` and `majority` rules), moving fraction, count, confidence, flags. *Verify:* hand-built cell fixtures covering every branch (grounded obstacle, overhang, dynamic priority, tie-break, empty cell, `int16` saturation).
 
 **Gate 6:** `pytest tests/grid -q --ignore=tests/grid/test_memory.py --ignore=tests/grid/test_cpp_parity.py` green (I1–I7, I10, layer tests).
 **Time-box & fallback:** 1 day. If a hypothesis test is too slow, reduce example *size*, never the example *count* below 100.
@@ -356,8 +356,8 @@ graph TD
 | 2 | Data Acquisition & Verification | P0 | ◐ code done; gate needs data | `phase-2-complete` |
 | 3 | Data Layer | P0 | ◐ code done; gate needs data | `phase-3-complete` |
 | 4 | Frame Alignment & Data Statistics | P0 | ◐ code done; gate needs data | `phase-4-complete` |
-| 5 | Grid Core | P0 | ☐ | `phase-5-complete` |
-| 6 | Grid Invariants & Packed Layers | P0 | ☐ | `phase-6-complete` |
+| 5 | Grid Core | P0 | ☑ | `phase-5-complete` |
+| 6 | Grid Invariants & Packed Layers | P0 | ☑ | `phase-6-complete` |
 | 7 | Baselines, Memory Accounting & Oracle Render | P0 (C++ P2) | ☐ | `phase-7-complete` |
 | 8 | Segmentation Model Selection & Integration | P0 | ☐ | `phase-8-complete` |
 | 9 | Prediction Cache & Model Evaluation | P0 | ☐ | `phase-9-complete` |
