@@ -98,11 +98,11 @@ graph TD
 **Goal:** a repository skeleton, a reproducible environment, a validated config system, and a working test/lint loop.
 **Depends on:** nothing.
 
-- [ ] **T1.1 (M)** Create the repository skeleton exactly as in README Section 7 (empty modules with docstrings and `NotImplementedError`), `pyproject.toml`, `.gitignore`, `LICENSE` (MIT), and the `Makefile` (README Appendix D). Seed `docs/DECISIONS.md` with **D-001** (Python package under `src/foveamap/` instead of flat `src/`; `src/main.py` is a shim) and **D-002** (Vite instead of Create-React-App).
-- [ ] **T1.2 (S)** Create the venv, install `requirements.txt`, run `pip install -e .`, and write `requirements.lock`. *Verify:* `python -c "import foveamap, torch, numpy, scipy, fastapi"`.
-- [ ] **T1.3 (M)** Write `scripts/doctor.py` (`make doctor`). It prints ✅/⚠️/❌ for: Python ≥ 3.10; `torch.cuda.is_available()` and GPU name; CMake/GCC; Node ≥ 18; ffmpeg; free disk; data layout for the configured sequences; weights present; C++ module importable. GPU and C++ missing are ⚠️ (allowed). Data and weights missing are ⚠️ until Phase 2 and Phase 8 respectively, and ❌ after (`--require-data`, `--require-weights` flags).
-- [ ] **T1.4 (M)** Implement `foveamap/config.py`: pydantic models for every YAML file in README Section 8, unknown keys rejected, metres→millimetres conversion exact. Write the default YAML files. *Verify:* `pytest tests/test_config.py`.
-- [ ] **T1.5 (S)** `make test` and `make lint` run (one smoke test is enough for now).
+- [x] **T1.1 (M)** Create the repository skeleton exactly as in README Section 7 (empty modules with docstrings and `NotImplementedError`), `pyproject.toml`, `.gitignore`, `LICENSE` (MIT), and the `Makefile` (README Appendix D). Seed `docs/DECISIONS.md` with **D-001** (Python package under `src/foveamap/` instead of flat `src/`; `src/main.py` is a shim) and **D-002** (Vite instead of Create-React-App).
+- [x] **T1.2 (S)** Create the venv, install `requirements.txt`, run `pip install -e .`, and write `requirements.lock`. *Verify:* `python -c "import foveamap, torch, numpy, scipy, fastapi"`.
+- [x] **T1.3 (M)** Write `scripts/doctor.py` (`make doctor`). It prints ✅/⚠️/❌ for: Python ≥ 3.10; `torch.cuda.is_available()` and GPU name; CMake/GCC; Node ≥ 18; ffmpeg; free disk; data layout for the configured sequences; weights present; C++ module importable. GPU and C++ missing are ⚠️ (allowed). Data and weights missing are ⚠️ until Phase 2 and Phase 8 respectively, and ❌ after (`--require-data`, `--require-weights` flags).
+- [x] **T1.4 (M)** Implement `foveamap/config.py`: pydantic models for every YAML file in README Section 8, unknown keys rejected, metres→millimetres conversion exact. Write the default YAML files. *Verify:* `pytest tests/test_config.py`.
+- [x] **T1.5 (S)** `make test` and `make lint` run (one smoke test is enough for now).
 
 **Gate 1:** `make doctor` shows no ❌ (data and weights are ⚠️ at this stage) · `pytest tests/test_config.py` green · `make test` and `make lint` run.
 **Time-box & fallback:** 0.5 day. If CUDA or C++ tooling fails to install, continue without them (both are optional at this point) and log it.
@@ -352,7 +352,7 @@ graph TD
 
 | # | Phase | Tier | Status | Gate tag |
 |---|---|---|---|---|
-| 1 | Project Setup & Environment | P0 | ☐ | `phase-1-complete` |
+| 1 | Project Setup & Environment | P0 | ☑ | `phase-1-complete` |
 | 2 | Data Acquisition & Verification | P0 | ☐ | `phase-2-complete` |
 | 3 | Data Layer | P0 | ☐ | `phase-3-complete` |
 | 4 | Frame Alignment & Data Statistics | P0 | ☐ | `phase-4-complete` |

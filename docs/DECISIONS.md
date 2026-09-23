@@ -14,3 +14,4 @@ The v0 architecture decision records are archived in `archive/DECISIONS_v0.md`.
 - D-009 · 2026-09-23 · 1 · pytest runs with `--import-mode=importlib` · README 11.2 places same-named test modules in several subfolders (and `tests/legacy` repeats names) · no `__init__.py` needed in test folders.
 - D-010 · 2026-09-23 · 1 · `.gitattributes` forces LF line endings · mixed Windows/macOS team; avoids whole-file CRLF diffs · none.
 - D-011 · 2026-09-23 · 1 · Project licence changed from Apache-2.0 (v0 ADR-005) to MIT · README L13/Section 18 and the team's decision · `LICENSE`, `pyproject.toml` updated; third-party licences are audited in Phase 15.
+- D-012 · 2026-09-23 · 1 · mypy checks against the running interpreter instead of a pinned `python_version = 3.10` · numpy 2.5's stubs use Python 3.12 syntax, so a 3.10 target fails before checking our code · `make typecheck` must run on Python >= 3.12 when numpy >= 2.5 is installed; the package itself still supports 3.10.
