@@ -54,4 +54,4 @@ class NumpyBackend:
             part = {name: v[lo:hi] for name, v in reduced.items()}
             rings.append(make_ring(j, rs.cell_mm, rs.side, cells[lo:hi] - offsets[j], part))
         in_grid = int(inside.sum())
-        return GridAccumulators(rings, FrameCounters(n_in_grid=in_grid, n_out_of_grid=n - in_grid))
+        return GridAccumulators(rings, FrameCounters(n_in_grid=in_grid, n_out_of_grid=n - in_grid), spec)

@@ -12,8 +12,12 @@ dict implementation.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from typing import TYPE_CHECKING
 
 import numpy as np
+
+if TYPE_CHECKING:
+    from foveamap.grid.presets import GridSpec
 
 N_CLASSES = 5
 INT32_MAX = int(np.iinfo(np.int32).max)
@@ -120,6 +124,7 @@ class RingAccumulators:
 class GridAccumulators:
     rings: list[RingAccumulators]
     counters: FrameCounters = field(default_factory=FrameCounters)
+    spec: GridSpec | None = None
 
 
 def point_fields(
