@@ -1,0 +1,17 @@
+# Segmentation model (README 8.2). Filled by the Model Selection Gate (T8.1).
+name: null                    # e.g. "salsanext"
+checkpoint: null              # configs/weights/<file>
+device: cuda                  # cuda | cpu
+input:                        # copy from the checkpoint's own config; do not guess
+  height: null
+  width: null
+  fov_up_deg: null
+  fov_down_deg: null
+  mean: null
+  std: null
+knn_postprocess: true
+cache_dir: data/cache/pred
+seed: 1337
+finetune:                     # P2, optional
+  enabled: false
+  distance_weight_alpha: 1.0

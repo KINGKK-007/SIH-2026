@@ -1,0 +1,7 @@
+# Synthetic hazard injection (README 8.5, 6.8).
+seed: 1337
+per_bucket_injections: 200
+min_ground_points: 3
+pothole: { radius_m: [0.3, 0.6], depth_m: [0.08, 0.15], detect_frac: 0.5 }
+kerb:    { width_m: 0.3, length_m: 4.0, height_m: [0.10, 0.20] }
+overhang: { size_m: [3.0, 1.0], height_above_ground_m: [1.6, 2.4] }
