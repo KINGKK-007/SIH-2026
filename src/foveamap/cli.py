@@ -8,10 +8,16 @@ by the phase named in their docstring.
 from __future__ import annotations
 
 import argparse
+import os
 import sys
 from collections.abc import Sequence
+from pathlib import Path
+
+import numpy as np
 
 from foveamap import __version__
+
+DEFAULT_DATA_ROOT = os.environ.get("FOVEAMAP_DATA_ROOT", "data/dataset")
 
 
 def _ensure_utf8_stdio() -> None:
@@ -28,6 +34,12 @@ def _add_common(p: argparse.ArgumentParser) -> None:
         "--preset", default=None, help="grid preset name (default: active_preset in configs/grid.yaml)"
     )
     p.add_argument("--config-dir", default="configs", help="directory holding the YAML configs")
+    p.add_argument(
+        "--data-root",
+        default=DEFAULT_DATA_ROOT,
+        help="SemanticKITTI root (default: $FOVEAMAP_DATA_ROOT or data/dataset)",
+    )
+    p.add_argument("--out-dir", default="results/plots", help="where figures are written")
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -61,7 +73,34 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def _cmd_inspect(args: argparse.Namespace) -> int:
-    raise NotImplementedError("`inspect` is implemented in Phase 2, T2.3 (docs/PHASES.md).")
+    """T2.3: point count, class histogram with names, pose, and a bird's-eye scatter PNG."""
+    from foveamap.io.labels import SUPER_CLASS_NAMES, raw_name, raw_to_super, semantic_ids
+    from foveamap.io.sequence import Sequence as KittiSequence
+    from foveamap.viz.figures import plot_scan_bev
+
+    seq = KittiSequence(args.data_root, args.sequence)
+    scan = seq.load_frame(args.idx)
+    print(f"sequence {scan.seq}  frame {scan.idx}  t = {scan.timestamp:.3f} s  ({seq.n_frames_total} frames)")
+    print(f"points: {len(scan.xyz):,}")
+    if scan.raw_labels is not None:
+        ids, counts = np.unique(semantic_ids(scan.raw_labels), return_counts=True)
+        print("raw classes:")
+        for i, c in sorted(zip(ids.tolist(), counts.tolist(), strict=True), key=lambda t: -t[1]):
+            print(f"  {i:>4} {raw_name(i):<22} {c:>8,}  {100 * c / len(scan.xyz):5.1f} %")
+        supers, moving = raw_to_super(scan.raw_labels)
+        print("super-classes:")
+        for k, name in enumerate(SUPER_CLASS_NAMES):
+            print(f"  {name:<22} {int((supers == k).sum()):>8,}")
+        print(f"  moving points          {int(moving.sum()):>8,}")
+    with np.printoptions(precision=4, suppress=True):
+        print("camera-0 pose (poses.txt):")
+        print(scan.pose[:3])
+        offset = seq.relative_transform(0, scan.idx)[:3, 3]
+        print(f"Velodyne position in frame 0: x={offset[0]:.3f} y={offset[1]:.3f} z={offset[2]:.3f} m")
+    out = Path(args.out_dir) / f"inspect_{scan.seq}_{scan.idx:06d}.png"
+    plot_scan_bev(scan.xyz, scan.raw_labels, out, f"sequence {scan.seq} frame {scan.idx} (raw classes)")
+    print(f"wrote {out}")
+    return 0
 
 
 def _cmd_render(args: argparse.Namespace) -> int:
