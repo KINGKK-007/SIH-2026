@@ -115,8 +115,8 @@ graph TD
 **Depends on:** Gate 1.
 
 - [ ] **T2.1 (M)** `[HUMAN]` Download per README Section 4.3: SemanticKITTI labels, and KITTI odometry velodyne (sequences 04, 07, 08 are enough, ~10 GB), calibration and ground-truth poses. Extract into `data/dataset/`. The agent must stop and ask the user to complete KITTI registration and the downloads.
-- [ ] **T2.2 (M)** `scripts/verify_data.py --sequences 04 07 08`: checks the folder layout; that `#labels == #scans`; per-scan `len(label) == N`; `#poses == #scans`; that `calib.txt` parses; and normalises poses by symlinking `poses/<seq>.txt` into `sequences/<seq>/poses.txt` if needed.
-- [ ] **T2.3 (S)** `python -m foveamap.cli inspect --sequence 08 --idx 0` prints the point count, class histogram (with names) and pose, and writes `results/plots/inspect_08_000000.png` (a simple bird's-eye scatter coloured by raw class).
+- [x] **T2.2 (M)** `scripts/verify_data.py --sequences 04 07 08`: checks the folder layout; that `#labels == #scans`; per-scan `len(label) == N`; `#poses == #scans`; that `calib.txt` parses; and normalises poses by symlinking `poses/<seq>.txt` into `sequences/<seq>/poses.txt` if needed.
+- [x] **T2.3 (S)** `python -m foveamap.cli inspect --sequence 08 --idx 0` prints the point count, class histogram (with names) and pose, and writes `results/plots/inspect_08_000000.png` (a simple bird's-eye scatter coloured by raw class).
 
 **Gate 2:** `python scripts/verify_data.py --sequences 04 07 08` passes · `python -m foveamap.cli inspect --sequence 08 --idx 0` runs · `make doctor --require-data` shows no ❌.
 **Time-box & fallback:** 3 h of *agent* time. If KITTI registration or the download is blocked, escalate to `[HUMAN]` (a teammate may share the sequence 04/07/08 folders). If only sequence 08 is obtainable, use its first 30 % of frames for tuning and the remaining 70 % for reporting, and log a deviation. Do not switch datasets.
@@ -128,11 +128,11 @@ graph TD
 **Goal:** scan, label, pose and calibration loading with the canonical label→super-class mapping.
 **Depends on:** Gate 2.
 
-- [ ] **T3.1 (S)** `io/kitti.py`: `load_scan_bin`, `load_label` (semantic = `raw & 0xFFFF`, instance = `raw >> 16`). *Verify:* tests for dtype, shape, and label/scan length equality on real files.
-- [ ] **T3.2 (M)** `io/poses.py`: parse `calib.txt` and `poses.txt`; `relative_transform` exactly per README Section 5.3 (`inv(Tr) @ inv(P_i) @ P_j @ Tr`). *Verify:* identity for `i == j`; `T(i,j) @ T(j,i) = I`; consecutive-scan translation < 3 m and rotation < 5°.
-- [ ] **T3.3 (M)** `io/labels.py`: `raw_to_super` from the full table (README Appendix A). Cross-check the table against the `semantic-kitti.yaml` (`learning_map`, `learning_map_inv`) from the SemanticKITTI API or the chosen model repo, and log any difference as a deviation. *Verify:* every raw ID in Appendix A is covered; unknown IDs map to `UNKNOWN` with a single warning; moving IDs 252–259 give `DYNAMIC, moving=True`; persons/cyclists are always `DYNAMIC`.
-- [ ] **T3.4 (S)** `io/sequence.py`: `Sequence` (lazy, indexable, supports `frame_stride`, returns `Scan`).
-- [ ] **T3.5 (S)** `eval/buckets.py`: `bucket_of_range` (L16: horizontal Euclidean range, buckets 0–10/10–30/30–60/60–100 m) and helpers; first version of `eval/density.py` (points per range bin).
+- [x] **T3.1 (S)** `io/kitti.py`: `load_scan_bin`, `load_label` (semantic = `raw & 0xFFFF`, instance = `raw >> 16`). *Verify:* tests for dtype, shape, and label/scan length equality on real files.
+- [x] **T3.2 (M)** `io/poses.py`: parse `calib.txt` and `poses.txt`; `relative_transform` exactly per README Section 5.3 (`inv(Tr) @ inv(P_i) @ P_j @ Tr`). *Verify:* identity for `i == j`; `T(i,j) @ T(j,i) = I`; consecutive-scan translation < 3 m and rotation < 5°.
+- [x] **T3.3 (M)** `io/labels.py`: `raw_to_super` from the full table (README Appendix A). Cross-check the table against the `semantic-kitti.yaml` (`learning_map`, `learning_map_inv`) from the SemanticKITTI API or the chosen model repo, and log any difference as a deviation. *Verify:* every raw ID in Appendix A is covered; unknown IDs map to `UNKNOWN` with a single warning; moving IDs 252–259 give `DYNAMIC, moving=True`; persons/cyclists are always `DYNAMIC`.
+- [x] **T3.4 (S)** `io/sequence.py`: `Sequence` (lazy, indexable, supports `frame_stride`, returns `Scan`).
+- [x] **T3.5 (S)** `eval/buckets.py`: `bucket_of_range` (L16: horizontal Euclidean range, buckets 0–10/10–30/30–60/60–100 m) and helpers; first version of `eval/density.py` (points per range bin).
 
 **Gate 3:** `pytest tests/io -q` green · label table cross-check logged.
 **Time-box & fallback:** 1 day. If the pose maths misbehaves, do not guess: Phase 4's numeric alignment check is the arbiter.
@@ -144,8 +144,8 @@ graph TD
 **Goal:** prove the coordinate-frame alignment across consecutive scans, and produce the data statistics that provide sample sizes for every later far-range metric.
 **Depends on:** Gate 3.
 
-- [ ] **T4.1 (M)** **Frame-alignment verification.** For 50 random consecutive pairs on sequences 04 and 08, transform scan *i−1* into frame *i* and compute the median nearest-neighbour distance between static-structure points (building/road/vegetation labels, range < 30 m). Save overlay plots to `results/plots/frame_alignment_*.png` and numbers to `results/frame_alignment.json`. **Gate criterion: median < 0.15 m.** If it fails, the transform (most often the `Tr` conjugation order or an inverse) is wrong: fix it, do not raise the threshold.
-- [ ] **T4.2 (S)** Data statistics table for sequences 04/07/08: points and per-class counts per distance bucket → `results/tables/data_stats.md`.
+- [x] **T4.1 (M)** **Frame-alignment verification.** For 50 random consecutive pairs on sequences 04 and 08, transform scan *i−1* into frame *i* and compute the median nearest-neighbour distance between static-structure points (building/road/vegetation labels, range < 30 m). Save overlay plots to `results/plots/frame_alignment_*.png` and numbers to `results/frame_alignment.json`. **Gate criterion: median < 0.15 m.** If it fails, the transform (most often the `Tr` conjugation order or an inverse) is wrong: fix it, do not raise the threshold.
+- [x] **T4.2 (S)** Data statistics table for sequences 04/07/08: points and per-class counts per distance bucket → `results/tables/data_stats.md`.
 
 **Gate 4:** alignment criterion met (`results/frame_alignment.json`) · `results/tables/data_stats.md` exists.
 **Time-box & fallback:** 0.5 day. If alignment does not converge after 2 h, cross-check against the SemanticKITTI API's public pose handling, log the finding, and continue.
@@ -353,9 +353,9 @@ graph TD
 | # | Phase | Tier | Status | Gate tag |
 |---|---|---|---|---|
 | 1 | Project Setup & Environment | P0 | ☑ | `phase-1-complete` |
-| 2 | Data Acquisition & Verification | P0 | ☐ | `phase-2-complete` |
-| 3 | Data Layer | P0 | ☐ | `phase-3-complete` |
-| 4 | Frame Alignment & Data Statistics | P0 | ☐ | `phase-4-complete` |
+| 2 | Data Acquisition & Verification | P0 | ◐ code done; gate needs data | `phase-2-complete` |
+| 3 | Data Layer | P0 | ◐ code done; gate needs data | `phase-3-complete` |
+| 4 | Frame Alignment & Data Statistics | P0 | ◐ code done; gate needs data | `phase-4-complete` |
 | 5 | Grid Core | P0 | ☐ | `phase-5-complete` |
 | 6 | Grid Invariants & Packed Layers | P0 | ☐ | `phase-6-complete` |
 | 7 | Baselines, Memory Accounting & Oracle Render | P0 (C++ P2) | ☐ | `phase-7-complete` |
