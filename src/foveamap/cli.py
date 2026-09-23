@@ -69,7 +69,45 @@ def build_parser() -> argparse.ArgumentParser:
     _add_common(p_memory)
     p_memory.add_argument("--idx", type=int, default=0)
 
+    p_align = sub.add_parser("align", help="frame-alignment verification of the pose maths (T4.1)")
+    _add_common(p_align)
+    p_align.add_argument("--sequences", nargs="+", default=["04", "08"])
+    p_align.add_argument("--pairs", type=int, default=50, help="random consecutive pairs per sequence")
+    p_align.add_argument("--seed", type=int, default=1337)
+    p_align.add_argument("--json", default="results/frame_alignment.json")
+
+    p_stats = sub.add_parser("stats", help="points and per-class counts per distance bucket (T4.2)")
+    _add_common(p_stats)
+    p_stats.add_argument("--sequences", nargs="+", default=["04", "07", "08"])
+    p_stats.add_argument("--stride", type=int, default=1, help="use every k-th frame")
+    p_stats.add_argument("--json", default="results/data_stats.json")
+    p_stats.add_argument("--table", default="results/tables/data_stats.md")
+
     return parser
+
+
+def _write_json(path: str | Path, payload: dict) -> Path:
+    import json
+
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    return path
+
+
+def _cmd_align(args: argparse.Namespace) -> int:
+    """T4.1: frame alignment; exit 0 only on PASS."""
+    from foveamap.eval.alignment import alignment_check
+
+    report = alignment_check(
+        args.data_root, args.sequences, n_pairs=args.pairs, seed=args.seed, plot_dir=args.out_dir
+    )
+    for key in ("spec", "compact", "identity_control"):
+        s = report[key]
+        print(f"{key:<17} median {s['median_m']:.4f} m   p90 {s['p90_m']:.4f} m   n = {s['n']:,}")
+    print(f"pairs: {report['n_pairs']}   threshold: {report['threshold_m']} m   verdict: {report['verdict']}")
+    print(f"wrote {_write_json(args.json, report)}")
+    return 0 if report["passed"] else 1
 
 
 def _cmd_inspect(args: argparse.Namespace) -> int:
@@ -115,7 +153,12 @@ def _cmd_run(args: argparse.Namespace) -> int:
     raise NotImplementedError("`--mode` runs are implemented in Phases 9 and 13 (docs/PHASES.md).")
 
 
-COMMANDS = {"inspect": _cmd_inspect, "render": _cmd_render, "memory": _cmd_memory}
+COMMANDS = {
+    "inspect": _cmd_inspect,
+    "render": _cmd_render,
+    "memory": _cmd_memory,
+    "align": _cmd_align,
+}
 
 
 def main(argv: Sequence[str] | None = None) -> int:

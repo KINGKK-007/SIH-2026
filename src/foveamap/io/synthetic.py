@@ -230,6 +230,7 @@ def write_kitti_sequence(
     seed: int = 1337,
     poses_in_poses_dir: bool = False,
     sensor: SensorModel | None = None,
+    speed_mps: float = 8.0,
 ) -> SyntheticSequence:
     """Write a SemanticKITTI-layout sequence under ``root/sequences/<seq>`` (README 5.1).
 
@@ -243,7 +244,7 @@ def write_kitti_sequence(
     (seq_dir / "labels").mkdir(parents=True, exist_ok=True)
     rng = np.random.default_rng(seed)
     Tr = kitti_like_tr()
-    vehicle = vehicle_trajectory(n_frames)
+    vehicle = vehicle_trajectory(n_frames, speed_mps=speed_mps)
     boxes = build_scene(seed)
     for k in range(n_frames):
         xyz, remission, raw = render_scan(boxes, vehicle[k], k * 0.1, rng, sensor)
