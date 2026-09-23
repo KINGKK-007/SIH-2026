@@ -1,12 +1,39 @@
-.DS_Store
+# README Section 7
+data/
+!data/.gitkeep
+venv/
+.venv/
+build/
+configs/weights/*
+!configs/weights/.gitkeep
+!configs/weights/WEIGHTS.md
+results/cache/
+node_modules/
+*.pth
+*.pt
+*.bin
+*.label
 
-# Python
+# Python / tooling
 __pycache__/
 *.py[cod]
-*.pyo
 *.nbi
 *.nbc
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.hypothesis/
+.coverage
+htmlcov/
 
-# Generated results
+# Dashboard build output
+src/dashboard/dist/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Legacy CLI writes its demo output here
 results/*.mp4
-results/*.png
+results/frame_*.png
