@@ -61,3 +61,12 @@ If Gate 4 is not PASS, do not raise the threshold (R2): the transform is wrong; 
 
 `pytest tests/grid/test_presets.py tests/grid/test_addressing.py tests/grid/test_conservation.py -q`: 55 passed (V1–V5, I1, I2, I5, I10; code-computed counts equal the closed forms).
 Built before Gate 4 (D-020).
+
+## Phase 6 — Grid Invariants & Packed Layers
+
+- 2026-09-24 · T6.1 · ff52cbe · reduce_block; I4 (fine->coarse bit-identity, independent code paths), I6 (permutation, determinism), I7 (naive dict implementation incl. uniform presets); hypothesis 200 examples/property, fixed seed; mutation-checked (min->max in reduce_block and a closed ring boundary are both caught).
+- 2026-09-24 · T6.2 · 5e27380 · packed 12-byte layers, safety/majority class rules, overhang clearance, flags; D-021 tie-breaks.
+
+### Gate 6 — passed 2026-09-24
+
+`pytest tests/grid -q --ignore=tests/grid/test_memory.py --ignore=tests/grid/test_cpp_parity.py`: 93 passed (I1–I7, I10, layer tests).
