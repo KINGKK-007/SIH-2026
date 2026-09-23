@@ -8,10 +8,16 @@ by the phase named in their docstring.
 from __future__ import annotations
 
 import argparse
+import os
 import sys
 from collections.abc import Sequence
+from pathlib import Path
+
+import numpy as np
 
 from foveamap import __version__
+
+DEFAULT_DATA_ROOT = os.environ.get("FOVEAMAP_DATA_ROOT", "data/dataset")
 
 
 def _ensure_utf8_stdio() -> None:
@@ -28,6 +34,12 @@ def _add_common(p: argparse.ArgumentParser) -> None:
         "--preset", default=None, help="grid preset name (default: active_preset in configs/grid.yaml)"
     )
     p.add_argument("--config-dir", default="configs", help="directory holding the YAML configs")
+    p.add_argument(
+        "--data-root",
+        default=DEFAULT_DATA_ROOT,
+        help="SemanticKITTI root (default: $FOVEAMAP_DATA_ROOT or data/dataset)",
+    )
+    p.add_argument("--out-dir", default="results/plots", help="where figures are written")
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -57,11 +69,89 @@ def build_parser() -> argparse.ArgumentParser:
     _add_common(p_memory)
     p_memory.add_argument("--idx", type=int, default=0)
 
+    p_align = sub.add_parser("align", help="frame-alignment verification of the pose maths (T4.1)")
+    _add_common(p_align)
+    p_align.add_argument("--sequences", nargs="+", default=["04", "08"])
+    p_align.add_argument("--pairs", type=int, default=50, help="random consecutive pairs per sequence")
+    p_align.add_argument("--seed", type=int, default=1337)
+    p_align.add_argument("--json", default="results/frame_alignment.json")
+
+    p_stats = sub.add_parser("stats", help="points and per-class counts per distance bucket (T4.2)")
+    _add_common(p_stats)
+    p_stats.add_argument("--sequences", nargs="+", default=["04", "07", "08"])
+    p_stats.add_argument("--stride", type=int, default=1, help="use every k-th frame")
+    p_stats.add_argument("--json", default="results/data_stats.json")
+    p_stats.add_argument("--table", default="results/tables/data_stats.md")
+
     return parser
 
 
+def _write_json(path: str | Path, payload: dict) -> Path:
+    import json
+
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    return path
+
+
+def _cmd_align(args: argparse.Namespace) -> int:
+    """T4.1: frame alignment; exit 0 only on PASS."""
+    from foveamap.eval.alignment import alignment_check
+
+    report = alignment_check(
+        args.data_root, args.sequences, n_pairs=args.pairs, seed=args.seed, plot_dir=args.out_dir
+    )
+    for key in ("spec", "compact", "identity_control"):
+        s = report[key]
+        print(f"{key:<17} median {s['median_m']:.4f} m   p90 {s['p90_m']:.4f} m   n = {s['n']:,}")
+    print(f"pairs: {report['n_pairs']}   threshold: {report['threshold_m']} m   verdict: {report['verdict']}")
+    print(f"wrote {_write_json(args.json, report)}")
+    return 0 if report["passed"] else 1
+
+
+def _cmd_stats(args: argparse.Namespace) -> int:
+    """T4.2: per-bucket data statistics as JSON and a generated markdown table."""
+    from foveamap.eval.data_stats import data_stats, stats_table_md
+
+    stats = data_stats(args.data_root, args.sequences, stride=args.stride)
+    table = Path(args.table)
+    table.parent.mkdir(parents=True, exist_ok=True)
+    table.write_text(stats_table_md(stats), encoding="utf-8")
+    print(stats_table_md(stats))
+    print(f"wrote {_write_json(args.json, stats)} and {table}")
+    return 0
+
+
 def _cmd_inspect(args: argparse.Namespace) -> int:
-    raise NotImplementedError("`inspect` is implemented in Phase 2, T2.3 (docs/PHASES.md).")
+    """T2.3: point count, class histogram with names, pose, and a bird's-eye scatter PNG."""
+    from foveamap.io.labels import SUPER_CLASS_NAMES, raw_name, raw_to_super, semantic_ids
+    from foveamap.io.sequence import Sequence as KittiSequence
+    from foveamap.viz.figures import plot_scan_bev
+
+    seq = KittiSequence(args.data_root, args.sequence)
+    scan = seq.load_frame(args.idx)
+    print(f"sequence {scan.seq}  frame {scan.idx}  t = {scan.timestamp:.3f} s  ({seq.n_frames_total} frames)")
+    print(f"points: {len(scan.xyz):,}")
+    if scan.raw_labels is not None:
+        ids, counts = np.unique(semantic_ids(scan.raw_labels), return_counts=True)
+        print("raw classes:")
+        for i, c in sorted(zip(ids.tolist(), counts.tolist(), strict=True), key=lambda t: -t[1]):
+            print(f"  {i:>4} {raw_name(i):<22} {c:>8,}  {100 * c / len(scan.xyz):5.1f} %")
+        supers, moving = raw_to_super(scan.raw_labels)
+        print("super-classes:")
+        for k, name in enumerate(SUPER_CLASS_NAMES):
+            print(f"  {name:<22} {int((supers == k).sum()):>8,}")
+        print(f"  moving points          {int(moving.sum()):>8,}")
+    with np.printoptions(precision=4, suppress=True):
+        print("camera-0 pose (poses.txt):")
+        print(scan.pose[:3])
+        offset = seq.relative_transform(0, scan.idx)[:3, 3]
+        print(f"Velodyne position in frame 0: x={offset[0]:.3f} y={offset[1]:.3f} z={offset[2]:.3f} m")
+    out = Path(args.out_dir) / f"inspect_{scan.seq}_{scan.idx:06d}.png"
+    plot_scan_bev(scan.xyz, scan.raw_labels, out, f"sequence {scan.seq} frame {scan.idx} (raw classes)")
+    print(f"wrote {out}")
+    return 0
 
 
 def _cmd_render(args: argparse.Namespace) -> int:
@@ -76,7 +166,13 @@ def _cmd_run(args: argparse.Namespace) -> int:
     raise NotImplementedError("`--mode` runs are implemented in Phases 9 and 13 (docs/PHASES.md).")
 
 
-COMMANDS = {"inspect": _cmd_inspect, "render": _cmd_render, "memory": _cmd_memory}
+COMMANDS = {
+    "inspect": _cmd_inspect,
+    "render": _cmd_render,
+    "memory": _cmd_memory,
+    "align": _cmd_align,
+    "stats": _cmd_stats,
+}
 
 
 def main(argv: Sequence[str] | None = None) -> int:

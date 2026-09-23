@@ -16,3 +16,37 @@ One line per task (README R10): `date · task · commit · outcome`. Gate summar
 - `make lint`: all checks passed. `make typecheck`: no issues in 15 source files.
 
 **Next:** Phase 2 needs the dataset (teammate's machine). Work that does not need data can start on Phases 3 and 5 code/tests with synthetic inputs; their gates run once data is present.
+
+## Phases 2–4 — code complete 2026-09-23; gates need the real dataset
+
+All code below is tested on the synthetic SemanticKITTI-format fixture (D-015). The `@data` tests skip until
+`data/dataset` (or `$FOVEAMAP_DATA_ROOT`) holds sequences 04/07/08.
+
+- 2026-09-23 · T3.1 · 92927ea · `load_scan_bin`, `load_label`, `split_label`; real-length check is `@data`.
+- 2026-09-23 · T3.2 · e5032de · calib/poses parsing, `relative_transform` exactly per README 5.3; property test proves frame semantics.
+- 2026-09-23 · T3.3 · dccc3c4 · `raw_to_super` from Appendix A; cross-check vs semantic-kitti-api yaml: identical (D-013).
+- 2026-09-23 · fixture · 5ccbfb8 · synthetic KITTI-format sequence generator (D-015).
+- 2026-09-23 · T3.4 · b8174a4 · `Sequence` (lazy, strided, poses in either location, times fallback).
+- 2026-09-23 · T3.5 · 53a38fb · `bucket_of_range` (D-016), `points_per_range_bin`.
+- 2026-09-23 · T2.2 · 9b89157 · `scripts/verify_data.py` (+ `foveamap.io.verify`); corrupted-copy tests; D-017 (Phase 3 before Phase 2 tools).
+- 2026-09-23 · T2.3 · b4c7794 · `foveamap inspect` prints stats/pose and writes the bird's-eye PNG.
+- 2026-09-23 · T4.1 · 02bf3a5 · `foveamap align`; gate strengthened with compact structure + identity control (D-018).
+- 2026-09-23 · T4.2 · 6a9165a · `foveamap stats` -> `results/data_stats.json`, `results/tables/data_stats.md`.
+
+`make test-fast`: 539 passed, 5 deselected (`@data`).
+
+### To run on the data machine (closes Gates 2, 3 and 4)
+
+```bash
+make doctor ARGS="--require-data"
+python scripts/verify_data.py --sequences 04 07 08 --json results/data_verification.json
+python -m foveamap.cli inspect --sequence 08 --idx 0
+python -m pytest tests/io -q
+python -m foveamap.cli align --sequences 04 08 --pairs 50
+python -m foveamap.cli stats --sequences 04 07 08
+python -m pytest -m data -q
+```
+
+Then paste the summaries here, commit `results/frame_alignment.json`, `results/data_stats.json`,
+`results/tables/data_stats.md` and the plots, and tag `phase-2-complete`, `phase-3-complete`, `phase-4-complete`.
+If Gate 4 is not PASS, do not raise the threshold (R2): the transform is wrong; see `foveamap.eval.alignment`.

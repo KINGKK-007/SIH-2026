@@ -82,5 +82,5 @@ def test_cli_help_exits_zero(capsys: pytest.CaptureFixture[str]) -> None:
 
 
 def test_cli_unimplemented_command_reports_phase(capsys: pytest.CaptureFixture[str]) -> None:
-    assert cli.main(["inspect", "--sequence", "08", "--idx", "0"]) == 2
-    assert "Phase 2" in capsys.readouterr().err
+    assert cli.main(["memory", "--sequence", "08", "--idx", "0"]) == 2
+    assert "Phase 7" in capsys.readouterr().err
