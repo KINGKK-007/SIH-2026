@@ -46,3 +46,19 @@ def real_sequences(real_data_root: Path) -> list[str]:
     if not found:
         pytest.skip("none of sequences 04/07/08 is present")
     return found
+
+
+# ── synthetic SemanticKITTI-format data (always available) ──────────────────
+SYNTHETIC_FRAMES = 12
+
+
+@pytest.fixture(scope="session")
+def synthetic_root(tmp_path_factory: pytest.TempPathFactory) -> Path:
+    """A synthetic dataset root with sequences 04, 07 and 08 (04 ships poses in ``poses/04.txt``)."""
+    from foveamap.io.synthetic import write_kitti_sequence
+
+    root = tmp_path_factory.mktemp("synthetic_kitti")
+    write_kitti_sequence(root, "08", n_frames=SYNTHETIC_FRAMES, seed=8)
+    write_kitti_sequence(root, "07", n_frames=SYNTHETIC_FRAMES, seed=7)
+    write_kitti_sequence(root, "04", n_frames=SYNTHETIC_FRAMES, seed=4, poses_in_poses_dir=True)
+    return root
