@@ -1,0 +1,12 @@
+{
+  "preset": "fovea_default",
+  "sequence": "08",
+  "n_frames": 100,
+  "mean_ms": 110.94,
+  "p50_ms": 109.31,
+  "p95_ms": 133.26,
+  "p99_ms": 137.43,
+  "max_ms": 153.69,
+  "sensor_period_ms": 100.0,
+  "real_time_verdict": "FAIL (p95 > 100 ms; see T7.5)"
+}
