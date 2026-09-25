@@ -70,3 +70,20 @@ Built before Gate 4 (D-020).
 ### Gate 6 — passed 2026-09-24
 
 `pytest tests/grid -q --ignore=tests/grid/test_memory.py --ignore=tests/grid/test_cpp_parity.py`: 93 passed (I1–I7, I10, layer tests).
+
+## Phase 7 — Baselines, Memory Accounting & Oracle Render
+
+- 2026-09-25 · T7.1 · 175a972 · `grid/baselines.py` (uniform_spec single-ring through same engine); `grid/memory.py` (memory_report: dense 3D theoretical, sparse 3D measured, uniform 2.5D theoretical, FoveaMap measured); 12 new tests in `tests/grid/test_memory.py` all pass. I9 confirmed: allocated counts == array sizes, logical ≤ allocated.
+- 2026-09-25 · T7.2 · bab30b8 · `models/oracle.py` (OracleModel: GT labels + conf=255); `pipeline/runner.py` (PipelineRunner oracle mode with per-stage perf_counter_ns timers); CLI `render` writes top-down PNGs height-shaded + class-coloured + ring boundaries; CLI `memory` prints the four-representation report. Gate 7 render verified: 3 PNGs for frames 0,1,2 written. Memory report: dense=2.38 GB, sparse=261 KB, uniform 2.5D=183 MB, FoveaMap=12.93 MB, reduction=14.2×.
+- 2026-09-25 · T7.3 · 0ffa532 · `eval/coarsening.py` (cost_of_coarsening: back-projection error per distance bucket; latency_report_grid: rasterize+finalize timing over 100 frames); `results/latency_grid_prelim.json` written. Grid-stage p95=133 ms > 100 ms → T7.5 triggered.
+- 2026-09-25 · T7.4 · 880e185 · `docs/design/protocol.md` frozen (Socket.IO `frame_update` event schema with all fields from FrameResult; client commands; versioning policy). Unblocks Phase 13.
+
+### Gate 7 — partial (T7.5 pending, T7.1-T7.4 verified)
+
+- `pytest tests/grid -q`: **105 passed** (includes new test_memory.py; I1–I7, I9, I10).
+- `python -m foveamap.cli render --mode oracle --sequence 08 --frames 0 1 2 --preset fovea_default`: 3 PNGs written ✅
+- `python -m foveamap.cli memory --sequence 08 --idx 0`: four-representation report printed ✅
+- `results/latency_grid_prelim.json` exists; p95=133 ms → T7.5 triggered (see DECISIONS.md) ✅
+- `docs/design/protocol.md` exists ✅
+
+**T7.5 note:** p95 grid latency = 133 ms > 100 ms threshold; numba/C++ fast path to be implemented (T7.5, tier P2). The NumPy backend remains the correctness oracle.

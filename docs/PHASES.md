@@ -184,10 +184,10 @@ graph TD
 **Goal:** uniform baselines through the same engine, four-representation memory accounting, the first rendered map from ground-truth labels, an early cost-of-coarsening prototype, and the frozen dashboard schema.
 **Depends on:** Gate 6.
 
-- [ ] **T7.1 (M)** `grid/baselines.py` (uniform presets through the same engine) and `grid/memory.py` (`memory_report`: dense 3D, sparse 3D, uniform 2.5D, FoveaMap; theoretical and measured; README Section 6.9). *Verify:* **I9** (accounting); theoretical numbers match the closed-form values.
-- [ ] **T7.2 (M)** Oracle pipeline: `models/oracle.py`, a minimal `pipeline/runner.py` (oracle mode with per-stage timers), and `cli render`, which writes a top-down PNG of the 2.5D map (height-shaded, class-coloured, ring boundaries and cell-size labels overlaid). This is the **first rendered map**.
-- [ ] **T7.3 (M)** Preliminary **cost-of-coarsening** prototype (oracle only, 50 scans of sequences 04/07): point back-projection accuracy per distance bucket for `fovea_default`, `ps_literal`, `uniform_5cm`, `uniform_20cm` (README Section 12.4). This establishes the evaluation plumbing early.
-- [ ] **T7.4 (S)** Freeze the dashboard message schema (README Section 13.3) into `docs/design/protocol.md`. This unblocks Phase 13.
+- [x] **T7.1 (M)** `grid/baselines.py` (uniform presets through the same engine) and `grid/memory.py` (`memory_report`: dense 3D, sparse 3D, uniform 2.5D, FoveaMap; theoretical and measured; README Section 6.9). *Verify:* **I9** (accounting); theoretical numbers match the closed-form values.
+- [x] **T7.2 (M)** Oracle pipeline: `models/oracle.py`, a minimal `pipeline/runner.py` (oracle mode with per-stage timers), and `cli render`, which writes a top-down PNG of the 2.5D map (height-shaded, class-coloured, ring boundaries and cell-size labels overlaid). This is the **first rendered map**.
+- [x] **T7.3 (M)** Preliminary **cost-of-coarsening** prototype (oracle only, 50 scans of sequences 04/07): point back-projection accuracy per distance bucket for `fovea_default`, `ps_literal`, `uniform_5cm`, `uniform_20cm` (README Section 12.4). This establishes the evaluation plumbing early.
+- [x] **T7.4 (S)** Freeze the dashboard message schema (README Section 13.3) into `docs/design/protocol.md`. This unblocks Phase 13.
 - [ ] **T7.5 (L, tier P2)** C++/pybind11 backend (`grid/cpp/`, `CMakeLists.txt`, `backends/cpp_backend.py`). **Trigger:** NumPy grid-stage p95 > 15 ms on 100 frames, *or* time remains after P0/P1. *Verify:* **I8** (bit-identical to NumPy) and a timing comparison table.
 
 **Gate 7 (all must pass):**
@@ -358,7 +358,7 @@ graph TD
 | 4 | Frame Alignment & Data Statistics | P0 | ◐ code done; gate needs data | `phase-4-complete` |
 | 5 | Grid Core | P0 | ☑ | `phase-5-complete` |
 | 6 | Grid Invariants & Packed Layers | P0 | ☑ | `phase-6-complete` |
-| 7 | Baselines, Memory Accounting & Oracle Render | P0 (C++ P2) | ☐ | `phase-7-complete` |
+| 7 | Baselines, Memory Accounting & Oracle Render | P0 (C++ P2) | ◐ T7.1-T7.4 done; T7.5 triggered (p95=133 ms > 100 ms) | `phase-7-complete` |
 | 8 | Segmentation Model Selection & Integration | P0 | ☐ | `phase-8-complete` |
 | 9 | Prediction Cache & Model Evaluation | P0 | ☐ | `phase-9-complete` |
 | 10 | Motion & Object Detection | P1 | ☐ | `phase-10-complete` |
