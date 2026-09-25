@@ -46,3 +46,5 @@ class ClassifiedScan:
     moving: np.ndarray  # (N,) bool
     conf: np.ndarray  # (N,) uint8
     objects: list[ObjectBox] = field(default_factory=list)
+    raw_ids: np.ndarray | None = None
+

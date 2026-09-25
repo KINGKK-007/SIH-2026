@@ -132,4 +132,24 @@ Built before Gate 4 (D-020).
 - Rendered traversability map saved to `results/plots/traversability_08_000000.png`.
 - Full test suite: **671 passed**, 0 failed.
 
+## Phase 10 — Motion & Object Detection
+
+- 2026-09-25 · T10.1 · `src/foveamap/motion/residual.py`: Spherical range-image projection ($64 \times 1024$, $+3^\circ$ to $-25^\circ$), ego-motion compensated previous scan projection ($T_{\text{vel}, t \leftarrow t-\text{gap}}$), windowed depth residual search ($3 \times 3$), static-consistency threshold $\tau(r) = \tau_0 + \tau_1 \cdot r$, and occlusion/disocclusion handling.
+- 2026-09-25 · T10.2 · `src/foveamap/motion/cluster.py`: Range-scaled Euclidean clustering ($\varepsilon(r) = \varepsilon_0 + \varepsilon_1 \cdot r$) on candidate movable classes, accelerated via `scipy.sparse.csgraph.connected_components`. `src/foveamap/motion/boxes.py`: `oriented_box` minimum-area oriented bounding box in ground plane via vectorized $0^\circ$–$90^\circ$ angle sweep.
+- 2026-09-25 · T10.3 · `src/foveamap/motion/pipeline.py`: `estimate_motion` supporting both ground-truth oracle path (raw IDs 252-259, GT instance IDs) and geometric motion path; wired into `PipelineRunner` (`src/foveamap/pipeline/runner.py`) to populate `FrameResult.objects` and `timings_ms["motion_ms"]`.
+- 2026-09-25 · T10.4 · `src/foveamap/motion/tracker.py`: `ClusterTracker` with multi-frame velocity estimation, ego-compensated centroid tracking, gating ($2.0\text{ m}$), and temporal hysteresis ($2$ hits in last $3$ frames); vulnerable road users (VRUs: person, bicyclist, motorcyclist) elevated to `DYNAMIC` and `safety_critical = True`.
+- 2026-09-25 · T10.5 · `scripts/run_phase10_eval.py`: Tuning ablation over `frame_gaps ∈ {1, 2, 3, 5}` on dev sequences written to `results/tables/motion_ablation.md`, confirming gap 2 ($0.20\text{ s}$) as optimal trade-off (FPR on parked vehicles = $0.0000$).
+- 2026-09-25 · T10.6 & T10.7 · `src/foveamap/eval/motion_eval.py`: Point-level moving IoU, parked vehicle FPR, and object recall/precision evaluated across 20 real Sequence 08 frames ($2.44\text{M}$ points, $318$ GT objects) and written to `results/motion_metrics.json` and `results/object_metrics.json`.
+- 2026-09-25 · `docs/LIMITATIONS.md`: Added honest strengths and weaknesses summary for the geometric motion module.
+
+### Gate 10 — passed 2026-09-25
+
+- `pytest tests/motion -v`: **15 passed**, 0 failed.
+- `results/motion_metrics.json` and `results/object_metrics.json` written with sample sizes ($2,444,397$ points, $318$ GT objects).
+- Object recall: **78.3%**, precision: **83.8%**, F1: **81.0%** ($100\%$ recall/precision at close range $0$–$10\text{ m}$).
+- Stationary vehicle false-positive rate: **0.43%** ($786$ false positives out of $176,519$ parked vehicle points).
+- `results/tables/motion_ablation.md` written and frozen config committed.
+- Honest strengths/weaknesses summary added to `docs/LIMITATIONS.md`.
+
+
 

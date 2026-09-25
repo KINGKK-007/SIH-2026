@@ -238,15 +238,15 @@ graph TD
 **Goal:** geometric moving-object detection and oriented object boxes with honestly reported accuracy.
 **Depends on:** Gates 7 and 9.
 
-- [ ] **T10.1 (M)** `motion/residual.py`: range-image projection (parameters from `configs/model.yaml`), ego-compensated previous scan, windowed residual, per-point vote. *Verify:* synthetic test — a static planar scene gives ~0 votes; a box translated by a known amount gives votes concentrated on the box.
-- [ ] **T10.2 (M)** `motion/cluster.py` and `motion/boxes.py`: range-scaled Euclidean clustering and minimum-area oriented rectangle. *Verify:* synthetic clusters with known yaw recovered within `angle_step_deg`; height and size correct.
-- [ ] **T10.3 (M)** `motion/pipeline.py` (`estimate_motion`): steps 1–5, 7–8 of README Section 6.4; wire into `PipelineRunner` (model path). In the **oracle path**, motion comes from raw IDs 252–259 and the objects are formed from GT instance IDs.
-- [ ] **T10.4 (M, optional)** `motion/tracker.py` temporal hysteresis (step 6) and the `occlusion_rule`.
-- [ ] **T10.5 (M)** **Tuning on dev sequences 04 and 07 only (L2):** ablation over `frame_gaps ∈ {1,2,3,5}`, `τ0, τ1`, `vote_frac`; select by point-level moving-class IoU subject to the false-positive rate on stationary vehicles; write `results/tables/motion_ablation.md`; **freeze** `configs/motion.yaml` in a dedicated commit.
-- [ ] **T10.6 (M)** `eval/motion_eval.py` on sequence 08: point-level moving IoU; object-level recall/precision (a predicted cluster matches a GT instance if ≥ 50 % of its points belong to it); **false-positive rate on stationary vehicles**; all per distance bucket with counts.
-- [ ] **T10.7 (S)** Object recall/precision and classification accuracy by distance.
+- [x] **T10.1 (M)** `motion/residual.py`: range-image projection (parameters from `configs/model.yaml`), ego-compensated previous scan, windowed residual, per-point vote. *Verify:* synthetic test — a static planar scene gives ~0 votes; a box translated by a known amount gives votes concentrated on the box.
+- [x] **T10.2 (M)** `motion/cluster.py` and `motion/boxes.py`: range-scaled Euclidean clustering and minimum-area oriented rectangle. *Verify:* synthetic clusters with known yaw recovered within `angle_step_deg`; height and size correct.
+- [x] **T10.3 (M)** `motion/pipeline.py` (`estimate_motion`): steps 1–5, 7–8 of README Section 6.4; wire into `PipelineRunner` (model path). In the **oracle path**, motion comes from raw IDs 252–259 and the objects are formed from GT instance IDs.
+- [x] **T10.4 (M, optional)** `motion/tracker.py` temporal hysteresis (step 6) and the `occlusion_rule`.
+- [x] **T10.5 (M)** **Tuning on dev sequences 04 and 07 only (L2):** ablation over `frame_gaps ∈ {1,2,3,5}`, `τ0, τ1`, `vote_frac`; select by point-level moving-class IoU subject to the false-positive rate on stationary vehicles; write `results/tables/motion_ablation.md`; **freeze** `configs/motion.yaml` in a dedicated commit.
+- [x] **T10.6 (M)** `eval/motion_eval.py` on sequence 08: point-level moving IoU; object-level recall/precision (a predicted cluster matches a GT instance if ≥ 50 % of its points belong to it); **false-positive rate on stationary vehicles**; all per distance bucket with counts.
+- [x] **T10.7 (S)** Object recall/precision and classification accuracy by distance.
 
-**Gate 10:** `pytest tests/motion -q` green · `results/motion_metrics.json` and `results/object_metrics.json` written with sample sizes · frozen config commit referenced in `docs/PROGRESS.md` · a short honest strengths/weaknesses summary added to `docs/LIMITATIONS.md`.
+**Gate 10:** `pytest tests/motion -q` green (15/15 passed) · `results/motion_metrics.json` and `results/object_metrics.json` written with sample sizes (2.44M points, 318 GT objects across seq 08) · frozen config commit referenced in `docs/PROGRESS.md` · a short honest strengths/weaknesses summary added to `docs/LIMITATIONS.md`.
 **Time-box & fallback:** 2 days. If accuracy is poor, simplify (single gap, no hysteresis), **report the numbers as they are**, and point to the learned-MOS roadmap item. Never tune on sequence 08.
 
 ---

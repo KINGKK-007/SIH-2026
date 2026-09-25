@@ -1,0 +1,44 @@
+{
+  "n_total": 2444397,
+  "tp": 0,
+  "fp": 786,
+  "fn": 8507,
+  "tn": 2435104,
+  "moving_iou": 0.0,
+  "stationary_vehicle_fpr": 0.0043,
+  "stationary_vehicle_count": 176519,
+  "by_distance": {
+    "0-10m": {
+      "n_points": 1426174,
+      "tp": 0,
+      "fp": 48,
+      "fn": 3940,
+      "iou": 0.0,
+      "stat_veh_fpr": 0.0004
+    },
+    "10-30m": {
+      "n_points": 858429,
+      "tp": 0,
+      "fp": 577,
+      "fn": 4183,
+      "iou": 0.0,
+      "stat_veh_fpr": 0.0143
+    },
+    "30-60m": {
+      "n_points": 139930,
+      "tp": 0,
+      "fp": 161,
+      "fn": 384,
+      "iou": 0.0,
+      "stat_veh_fpr": 0.0488
+    },
+    "60-100m": {
+      "n_points": 19864,
+      "tp": 0,
+      "fp": 0,
+      "fn": 0,
+      "iou": 0.0,
+      "stat_veh_fpr": 0.0
+    }
+  }
+}

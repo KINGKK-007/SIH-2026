@@ -24,7 +24,7 @@ from foveamap.grid.memory import MemoryReport, memory_report
 from foveamap.grid.presets import GridSpec
 from foveamap.io.labels import raw_to_super
 from foveamap.io.sequence import Sequence
-from foveamap.pipeline.records import ObjectBox
+from foveamap.pipeline.records import ClassifiedScan, ObjectBox, Prediction, Scan
 
 
 @dataclass
@@ -86,6 +86,9 @@ class PipelineRunner:
         except AttributeError:
             self.grid_cfg = cfgs
         self.derived_cfg = getattr(cfgs, "derived", None)
+        self.motion_cfg = getattr(cfgs, "motion", None)
+        from foveamap.motion.tracker import ClusterTracker
+        self.tracker = ClusterTracker(self.motion_cfg)
 
     def process(self, seq: Sequence, idx: int) -> FrameResult:
         """Run the pipeline for one frame and return a :class:`FrameResult`.
@@ -114,6 +117,63 @@ class PipelineRunner:
         super_cls, moving = raw_to_super(prediction.raw_ids)
         conf = prediction.conf
         timings_ns["label_ms"] = perf_counter_ns() - t0
+
+        # Stage 3.5: Motion detection & Object tracking (Phase 10)
+        t0 = perf_counter_ns()
+        from foveamap.io.poses import relative_transform
+        from foveamap.motion.pipeline import estimate_motion
+
+        cur_classified = ClassifiedScan(
+            scan=scan,
+            super_cls=super_cls,
+            moving=moving,
+            conf=conf,
+            objects=[],
+            raw_ids=prediction.raw_ids,
+        )
+
+        if self.mode == "oracle":
+            classified = estimate_motion(
+                cur_classified,
+                prev_scans=[],
+                transforms=[],
+                cfg=self.motion_cfg,
+                use_oracle=True,
+            )
+            objects = classified.objects
+            super_cls = classified.super_cls
+            moving = classified.moving
+        elif self.motion_cfg is not None and getattr(self.motion_cfg, "enabled", True):
+            frame_gaps = getattr(self.motion_cfg, "frame_gaps", [2])
+            prev_scans: list[tuple[Scan, Prediction]] = []
+            transforms: list[np.ndarray] = []
+            for gap in frame_gaps:
+                prev_idx = idx - gap
+                if 0 <= prev_idx < seq.n_frames_total:
+                    try:
+                        p_scan = seq.load_frame(prev_idx)
+                        p_pred = self.model.predict(p_scan)
+                        T = relative_transform(seq.calib, seq.poses, idx, prev_idx)
+                        prev_scans.append((p_scan, p_pred))
+                        transforms.append(T)
+                    except Exception:
+                        pass
+
+            classified = estimate_motion(
+                cur_classified,
+                prev_scans=prev_scans,
+                transforms=transforms,
+                cfg=self.motion_cfg,
+                use_oracle=False,
+            )
+            T_prev = transforms[0] if transforms else None
+            objects = self.tracker.update(classified.objects, T_prev)
+            super_cls = classified.super_cls
+            moving = classified.moving
+        else:
+            objects = []
+
+        timings_ns["motion_ms"] = perf_counter_ns() - t0
 
         # Stage 4: Grid rasterisation
         t0 = perf_counter_ns()
@@ -148,7 +208,7 @@ class PipelineRunner:
         return FrameResult(
             scan_idx=idx,
             layers=layers,
-            objects=[],  # populated by Phase 10 (motion/object detection)
+            objects=objects,
             counters=acc.counters,
             timings_ms=timings_ms,
             memory=mem,
