@@ -16,6 +16,7 @@ from dataclasses import dataclass
 from time import perf_counter_ns
 from typing import Literal
 
+from foveamap.derived import compute_derived_layers
 from foveamap.grid.accumulators import FrameCounters
 from foveamap.grid.engine import rasterize
 from foveamap.grid.layers import GridLayers, finalize
@@ -84,6 +85,7 @@ class PipelineRunner:
             self.grid_cfg = cfgs.grid  # type: ignore[union-attr]
         except AttributeError:
             self.grid_cfg = cfgs
+        self.derived_cfg = getattr(cfgs, "derived", None)
 
     def process(self, seq: Sequence, idx: int) -> FrameResult:
         """Run the pipeline for one frame and return a :class:`FrameResult`.
@@ -129,6 +131,12 @@ class PipelineRunner:
         t0 = perf_counter_ns()
         layers = finalize(acc, self.grid_cfg, self.preset)
         timings_ns["finalize_ms"] = perf_counter_ns() - t0
+
+        # Stage 5.5: Derived geometric layers (Phase 11)
+        if getattr(self, "derived_cfg", None) is not None:
+            t0 = perf_counter_ns()
+            layers = compute_derived_layers(layers, self.derived_cfg)
+            timings_ns["derived_ms"] = perf_counter_ns() - t0
 
         # Stage 6: Memory accounting
         t0 = perf_counter_ns()

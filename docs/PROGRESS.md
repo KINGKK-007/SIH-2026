@@ -111,3 +111,25 @@ Built before Gate 4 (D-020).
 - Python test client confirmed `create_app()` serves `src/dashboard/dist/index.html` at `GET /` with HTTP 200.
 - Full test suite: **657 passed**, 0 failed.
 
+## Phase 11 — Derived Layers & Synthetic Hazards
+
+- 2026-09-25 · T11.1 · `src/foveamap/derived/halo.py`: `compute_halo` (fine->coarse block reduction into inner holes) and `extract_padded_ring` (coarse->fine nearest-cell replication into boundary pads) implemented.
+- 2026-09-25 · T11.2 · `src/foveamap/derived/slope.py`: `compute_slope_deg` and `compute_slope` (central difference in X and Y, degrees, `FLAG_STEEP` bit 5 set when slope > max_slope_deg).
+- 2026-09-25 · T11.3 · `src/foveamap/derived/step.py`: `compute_step_height_mm` and `compute_step` (max step across 4-neighbours with >= min_points_step, `FLAG_KERB` bit 4 set in [kerb_min, kerb_max]).
+- 2026-09-25 · T11.4 · `src/foveamap/derived/clearance.py`: `compute_clearance` (checks overhang vertical gap against vehicle_height + margin, sets `FLAG_LOW_CLEARANCE` bit 6).
+- 2026-09-25 · T11.5 · `src/foveamap/derived/traversability.py`: `compute_traversability` and `traversability_map` (3-state categories: TRAVERSABLE=1, NON_TRAVERSABLE=2, UNKNOWN=0; sets `FLAG_TRAVERSABLE` bit 3).
+- 2026-09-25 · T11.6 · `tests/derived/test_synthetic_terrain.py`: synthetic ramp slope recovery, kerb step detection at fine vs coarse, overhang clearance, and empty cell unknown status verified.
+- 2026-09-25 · T11.7 · `src/foveamap/derived/hazards.py`: `inject_hazards` (seeded pothole, kerb, and overhang injections into candidate drivable scans) and `check_hazard_detected`.
+- 2026-09-25 · T11.8 · `src/foveamap/eval/hazard_eval.py`: Wilson 95% confidence intervals, summary aggregations by type, ring, and range bucket; saved to `results/hazard_metrics.json` and `results/plots/hazard_detection_by_ring.png` (750 injections evaluated across Sequence 08).
+- 2026-09-25 · T11.9 · `src/foveamap/derived/zoom.py`: `render_zoom` implemented; real kerb comparison plot saved to `results/plots/zoom_kerb_fine_vs_coarse.png` for Sequence 08 Frame 0.
+- 2026-09-25 · T11.10 · Pipeline integration: `PipelineRunner` wired to run `compute_derived_layers` and record `derived_ms`.
+
+### Gate 11 — passed 2026-09-25
+
+- `pytest tests/derived -v`: **13 passed**, 0 failed.
+- Kerb visibly detected at fine resolution in `results/plots/zoom_kerb_fine_vs_coarse.png`.
+- `results/hazard_metrics.json` exists with n = 750 (250 per hazard type, >> 200 required) and Wilson 95% CIs.
+- Rendered traversability map saved to `results/plots/traversability_08_000000.png`.
+- Full test suite: **671 passed**, 0 failed.
+
+

@@ -256,16 +256,16 @@ graph TD
 **Goal:** slope, kerb/step, clearance and traversability layers, plus synthetic hazard injection with per-ring detection rates.
 **Depends on:** Gate 6 (oracle or model output; Gate 7 for the render checks).
 
-- [ ] **T11.1 (M)** `derived/halo.py`: one-cell halo from adjacent rings (coarse→fine by replication; fine→coarse via exact `reduce_block`). *Verify:* a smooth synthetic ramp crossing ring boundaries yields continuous slope with no seam artefacts.
-- [ ] **T11.2 (S)** `derived/slope.py` — central-difference slope, masked where neighbours have no ground.
-- [ ] **T11.3 (M)** `derived/step.py` — step/kerb detector (README Section 6.7).
-- [ ] **T11.4 (S)** `derived/clearance.py` — overhang clearance and `low_clearance` flag.
-- [ ] **T11.5 (S)** `derived/traversability.py` — 3-state map (`TRAVERSABLE`, `NON_TRAVERSABLE`, `UNKNOWN`; unknown is not free).
-- [ ] **T11.6 (M)** Synthetic-terrain unit tests: a ramp of known slope is recovered within tolerance at each ring resolution; a step of known height (e.g. 12 cm) sets the kerb flag at rings 1–2, with quantified degradation at coarse rings; an overhang slab sets `low_clearance`; empty cells are `UNKNOWN`.
-- [ ] **T11.7 (M)** `derived/hazards.py` (README Section 6.8): pothole/kerb/overhang injection with a seeded RNG and placement rules; injected points carry ground-truth hazard footprints.
-- [ ] **T11.8 (M)** `eval/hazard_eval.py`: detection rate per ring, per distance bucket and per hazard size; ≥ 200 injections per bucket; Wilson 95 % CIs → `results/hazard_metrics.json`, `results/plots/hazard_detection_by_ring.png`.
-- [ ] **T11.9 (M)** **Zoom-lens data path:** `render_zoom(acc_or_layers, world_box, preset_fine, preset_coarse)` returning the same world window at fine and coarse resolution. Save `results/plots/zoom_kerb_fine_vs_coarse.png` for a real kerb in sequence 08 (a frame with a clear sidewalk/road boundary within 10 m; record the frame index).
-- [ ] **T11.10 (S)** Sanity-check thresholds on dev sequences 04/07 by visual inspection; if any default in `configs/derived.yaml` is changed, log a deviation with before/after images.
+- [x] **T11.1 (M)** `derived/halo.py`: one-cell halo from adjacent rings (coarse→fine by replication; fine→coarse via exact `reduce_block`). *Verify:* a smooth synthetic ramp crossing ring boundaries yields continuous slope with no seam artefacts.
+- [x] **T11.2 (S)** `derived/slope.py` — central-difference slope, masked where neighbours have no ground.
+- [x] **T11.3 (M)** `derived/step.py` — step/kerb detector (README Section 6.7).
+- [x] **T11.4 (S)** `derived/clearance.py` — overhang clearance and `low_clearance` flag.
+- [x] **T11.5 (S)** `derived/traversability.py` — 3-state map (`TRAVERSABLE`, `NON_TRAVERSABLE`, `UNKNOWN`; unknown is not free).
+- [x] **T11.6 (M)** Synthetic-terrain unit tests: a ramp of known slope is recovered within tolerance at each ring resolution; a step of known height (e.g. 12 cm) sets the kerb flag at rings 1–2, with quantified degradation at coarse rings; an overhang slab sets `low_clearance`; empty cells are `UNKNOWN`.
+- [x] **T11.7 (M)** `derived/hazards.py` (README Section 6.8): pothole/kerb/overhang injection with a seeded RNG and placement rules; injected points carry ground-truth hazard footprints.
+- [x] **T11.8 (M)** `eval/hazard_eval.py`: detection rate per ring, per distance bucket and per hazard size; ≥ 200 injections per bucket; Wilson 95 % CIs → `results/hazard_metrics.json`, `results/plots/hazard_detection_by_ring.png`.
+- [x] **T11.9 (M)** **Zoom-lens data path:** `render_zoom(acc_or_layers, world_box, preset_fine, preset_coarse)` returning the same world window at fine and coarse resolution. Save `results/plots/zoom_kerb_fine_vs_coarse.png` for a real kerb in sequence 08 (a frame with a clear sidewalk/road boundary within 10 m; record the frame index).
+- [x] **T11.10 (S)** Sanity-check thresholds on dev sequences 04/07 by visual inspection; if any default in `configs/derived.yaml` is changed, log a deviation with before/after images.
 
 **Gate 11:** `pytest tests/derived -q` green · the kerb is visibly detected at fine resolution in the saved zoom figure · `results/hazard_metrics.json` exists with n ≥ 200 per bucket and CIs · a rendered traversability map PNG for one frame exists.
 **Time-box & fallback:** 2 days. If short of time, drop the hazard UI (Phase 14) but keep the offline hazard evaluation; drop the pothole type before the kerb.
