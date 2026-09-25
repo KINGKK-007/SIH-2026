@@ -354,19 +354,19 @@ graph TD
 
 | # | Phase | Tier | Status | Gate tag |
 |---|---|---|---|---|
-| 1 | Project Setup & Environment | P0 | ☑ | `phase-1-complete` |
-| 2 | Data Acquisition & Verification | P0 | ◐ code done; gate needs data | `phase-2-complete` |
-| 3 | Data Layer | P0 | ◐ code done; gate needs data | `phase-3-complete` |
-| 4 | Frame Alignment & Data Statistics | P0 | ◐ code done; gate needs data | `phase-4-complete` |
-| 5 | Grid Core | P0 | ☑ | `phase-5-complete` |
-| 6 | Grid Invariants & Packed Layers | P0 | ☑ | `phase-6-complete` |
-| 7 | Baselines, Memory Accounting & Oracle Render | P0 (C++ P2) | ◐ T7.1-T7.4 done; T7.5 triggered (p95=133 ms > 100 ms) | `phase-7-complete` |
-| 8 | Segmentation Model Selection & Integration | P0 | ☐ | `phase-8-complete` |
-| 9 | Prediction Cache & Model Evaluation | P0 | ☐ | `phase-9-complete` |
+| 1 | Project Setup & Environment | P0 | ☑ passed | `phase-1-complete` |
+| 2 | Data Acquisition & Verification | P0 | ☑ seq 08 verified (4,071 frames) | `phase-2-complete` |
+| 3 | Data Layer | P0 | ☑ passed | `phase-3-complete` |
+| 4 | Frame Alignment & Data Statistics | P0 | ☑ passed (NN median 0.039 m < 0.15 m) | `phase-4-complete` |
+| 5 | Grid Core | P0 | ☑ passed | `phase-5-complete` |
+| 6 | Grid Invariants & Packed Layers | P0 | ☑ passed | `phase-6-complete` |
+| 7 | Baselines, Memory Accounting & Oracle Render | P0 (C++ P2) | ☑ T7.1-T7.4 passed (T7.5 P2 triggered) | `phase-7-complete` |
+| 8 | Segmentation Model Selection & Integration | P0 | ◐ code complete (LSK3DNet D-022); gate needs GPU | `phase-8-complete` |
+| 9 | Prediction Cache & Model Evaluation | P0 | ◐ T9.1/T9.2 done (CachedModel tested); needs GPU cache | `phase-9-complete` |
 | 10 | Motion & Object Detection | P1 | ☐ | `phase-10-complete` |
 | 11 | Derived Layers & Synthetic Hazards | P1 | ☐ | `phase-11-complete` |
 | 12 | Benchmarking | P1 (P0 subset) | ☐ | `phase-12-complete` |
-| 13 | Dashboard Backend & Frontend Scaffold | P0 | ☐ | `phase-13-complete` |
+| 13 | Dashboard Backend & Frontend Scaffold | P0 | ☐ unblocked (protocol schema frozen in T7.4) | `phase-13-complete` |
 | 14 | Dashboard Panels & Controls | P0/P1 | ☐ | `phase-14-complete` |
 | 15 | Offline Video, Testing & Final Polish | P0 | ☐ | `phase-15-complete`, `v1.0-sih` |
 
