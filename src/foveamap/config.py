@@ -169,6 +169,22 @@ class ModelInputConfig(_Strict):
     mean: list[float] | None = None
     std: list[float] | None = None
 
+    # LSK3DNet-specific (ignored for other models) ─────────────────────────────
+    input_dims: int | None = Field(default=None, gt=0)
+    voxel_size: float | None = Field(default=None, gt=0)
+    model_x_range: tuple[float, float] | None = None
+    model_y_range: tuple[float, float] | None = None
+    model_z_range: tuple[float, float] | None = None
+    grid_shape: list[int] | None = None
+
+
+class Lsk3dnetConfig(_Strict):
+    """LSK3DNet-specific settings (Phase 8, T8.1)."""
+
+    model_class: str = "largekernelseg"
+    num_classes: int = Field(default=20, ge=1)
+    ignore_class: int = Field(default=0, ge=0)
+
 
 class FinetuneConfig(_Strict):
     enabled: bool = False
@@ -184,6 +200,7 @@ class ModelConfig(_Strict):
     cache_dir: str
     seed: int
     finetune: FinetuneConfig
+    lsk3dnet: Lsk3dnetConfig | None = None   # populated only when name == "lsk3dnet"
 
 
 # ── motion.yaml (README 8.3) ────────────────────────────────────────────────
