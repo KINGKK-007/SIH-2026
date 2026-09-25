@@ -155,11 +155,84 @@ def _cmd_inspect(args: argparse.Namespace) -> int:
 
 
 def _cmd_render(args: argparse.Namespace) -> int:
-    raise NotImplementedError("`render` is implemented in Phase 7, T7.2 (docs/PHASES.md).")
+    """T7.2: oracle top-down 2.5D map render for selected frames."""
+    from foveamap.config import load_config
+    from foveamap.grid.presets import load_preset
+    from foveamap.io.sequence import Sequence as KittiSequence
+    from foveamap.models.oracle import OracleModel
+    from foveamap.pipeline.runner import PipelineRunner
+    from foveamap.viz.figures import plot_grid_bev
+
+    cfgs = load_config(args.config_dir)
+    preset_name = args.preset or cfgs.grid.active_preset
+    preset = load_preset(preset_name, cfgs.grid)
+
+    model = OracleModel()
+    runner = PipelineRunner(mode=args.mode, model=model, preset=preset, cfgs=cfgs)
+
+    seq = KittiSequence(args.data_root, args.sequence)
+    out_dir = Path(args.out_dir)
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    written = []
+    for frame_idx in args.frames:
+        result = runner.process(seq, frame_idx)
+        out = out_dir / f"render_{args.mode}_{args.sequence}_{frame_idx:06d}_{preset_name}.png"
+        plot_grid_bev(
+            preset,
+            result.layers,
+            out,
+            title=f"seq {args.sequence}  frame {frame_idx}  preset={preset_name}  mode={args.mode}",
+        )
+        counters = result.counters
+        grid_ms = result.timings_ms.get("grid_ms", float("nan"))
+        print(
+            f"frame {frame_idx:6d}  "
+            f"points={counters.n_raw:,}  in_grid={counters.n_in_grid:,}  "
+            f"grid={grid_ms:.1f} ms  wrote {out}"
+        )
+        written.append(str(out))
+
+    print(f"wrote {len(written)} render(s)")
+    return 0
 
 
 def _cmd_memory(args: argparse.Namespace) -> int:
-    raise NotImplementedError("`memory` is implemented in Phase 7, T7.1 (docs/PHASES.md).")
+    """T7.1: four-representation memory report for one frame."""
+    from foveamap.config import load_config
+    from foveamap.grid.presets import load_preset
+    from foveamap.io.sequence import Sequence as KittiSequence
+    from foveamap.models.oracle import OracleModel
+    from foveamap.pipeline.runner import PipelineRunner
+
+    cfgs = load_config(args.config_dir)
+    preset_name = args.preset or cfgs.grid.active_preset
+    preset = load_preset(preset_name, cfgs.grid)
+
+    model = OracleModel()
+    runner = PipelineRunner(mode="oracle", model=model, preset=preset, cfgs=cfgs)
+
+    seq = KittiSequence(args.data_root, args.sequence)
+    result = runner.process(seq, args.idx)
+    mem = result.memory
+
+    def _fmt(b: int) -> str:
+        if b >= 1 << 30:
+            return f"{b / (1 << 30):.2f} GB"
+        if b >= 1 << 20:
+            return f"{b / (1 << 20):.2f} MB"
+        return f"{b / (1 << 10):.2f} KB"
+
+    print(f"Memory report  seq={args.sequence}  frame={args.idx}  preset={preset_name}")
+    print(f"  basis          : {mem.basis}")
+    print(f"  dense 3D       : {_fmt(mem.dense3d_bytes):>12}  ({mem.dense3d_bytes:,} B)  [theoretical, never allocated]")
+    print(f"  sparse 3D      : {_fmt(mem.sparse3d_bytes):>12}  ({mem.sparse3d_bytes:,} B)")
+    print(f"  uniform 2.5D   : {_fmt(mem.uniform25d_bytes):>12}  ({mem.uniform25d_bytes:,} B)")
+    print(f"  FoveaMap       : {_fmt(mem.fovea_bytes):>12}  ({mem.fovea_bytes:,} B)")
+    if mem.basis == "allocated":
+        ratio = mem.uniform25d_bytes / max(mem.fovea_bytes, 1)
+        print(f"  reduction vs uniform 2.5D: {ratio:.1f}x")
+    return 0
 
 
 def _cmd_run(args: argparse.Namespace) -> int:
