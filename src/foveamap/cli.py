@@ -40,6 +40,15 @@ def _add_common(p: argparse.ArgumentParser) -> None:
         help="SemanticKITTI root (default: $FOVEAMAP_DATA_ROOT or data/dataset)",
     )
     p.add_argument("--out-dir", default="results/plots", help="where figures are written")
+    p.add_argument(
+        "--device",
+        default="auto",
+        choices=["auto", "cuda", "cpu"],
+        help=(
+            "processing device: 'auto' (default) uses GPU via CuPy when available, "
+            "falling back to NumPy; 'cuda' forces GPU (error if CuPy absent); 'cpu' forces NumPy."
+        ),
+    )
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -181,7 +190,7 @@ def _cmd_render(args: argparse.Namespace) -> int:
         model: object = CachedModel(model_name, cfgs.model.cache_dir)
     else:
         model = OracleModel()
-    runner = PipelineRunner(mode=args.mode, model=model, preset=preset, cfgs=cfgs)
+    runner = PipelineRunner(mode=args.mode, model=model, preset=preset, cfgs=cfgs, device=args.device)
 
     seq = KittiSequence(args.data_root, args.sequence)
     out_dir = Path(args.out_dir)
@@ -223,7 +232,7 @@ def _cmd_memory(args: argparse.Namespace) -> int:
     preset = load_preset(preset_name, cfgs.grid)
 
     model = OracleModel()
-    runner = PipelineRunner(mode="oracle", model=model, preset=preset, cfgs=cfgs)
+    runner = PipelineRunner(mode="oracle", model=model, preset=preset, cfgs=cfgs, device=args.device)
 
     seq = KittiSequence(args.data_root, args.sequence)
     result = runner.process(seq, args.idx)
@@ -272,7 +281,7 @@ def _cmd_serve(args: argparse.Namespace) -> int:
     else:
         raise NotImplementedError("live mode requires live network running on GPU machine.")
 
-    runner = PipelineRunner(mode=args.mode, model=model, preset=preset, cfgs=cfgs)
+    runner = PipelineRunner(mode=args.mode, model=model, preset=preset, cfgs=cfgs, device=args.device)
     app = create_app(runner=runner, seq=seq, cfgs=cfgs, sequence_id=args.sequence)
 
     print(f"Starting FoveaMap dashboard server on http://{args.host}:{args.port} (mode={args.mode}, seq={args.sequence}, preset={preset_name})")

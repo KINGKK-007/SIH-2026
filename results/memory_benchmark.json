@@ -1,0 +1,47 @@
+{
+  "sequence": "08",
+  "n_frames_evaluated": 30,
+  "representations": {
+    "dense_3d": {
+      "theoretical_mb": 2441.41,
+      "mean_bytes": 2560000000.0,
+      "mean_mb": 2441.41,
+      "p95_bytes": 2560000000.0,
+      "p95_mb": 2441.41,
+      "min_bytes": 2560000000.0,
+      "max_bytes": 2560000000.0
+    },
+    "sparse_3d": {
+      "theoretical_mb": 0.23,
+      "mean_bytes": 271363.2,
+      "mean_mb": 0.26,
+      "p95_bytes": 334851.74999999994,
+      "p95_mb": 0.32,
+      "min_bytes": 182988.0,
+      "max_bytes": 344025.0
+    },
+    "uniform_25d_5cm": {
+      "theoretical_mb": 183.11,
+      "mean_bytes": 192000000.0,
+      "mean_mb": 183.11,
+      "p95_bytes": 192000000.0,
+      "p95_mb": 183.11,
+      "min_bytes": 192000000.0,
+      "max_bytes": 192000000.0
+    },
+    "foveamap_25d": {
+      "theoretical_mb": 12.93,
+      "mean_bytes": 13560000.0,
+      "mean_mb": 12.93,
+      "p95_bytes": 13560000.0,
+      "p95_mb": 12.93,
+      "min_bytes": 13560000.0,
+      "max_bytes": 13560000.0
+    }
+  },
+  "reduction_ratios": {
+    "vs_dense_3d": 188.8,
+    "vs_sparse_3d": 0.0,
+    "vs_uniform_25d": 14.2
+  }
+}

@@ -49,7 +49,11 @@ class PlaybackManager:
     async def emit_current_frame(self) -> dict[str, Any]:
         """Process and emit the current frame result."""
         frame_idx = self.seq.frame_index(self.current_idx)
-        result = self.runner.process(self.seq, frame_idx)
+
+        # Run the blocking CPU/GPU pipeline in a thread pool so the event loop
+        # stays responsive (otherwise one 500ms process() call = 1 FPS cap).
+        loop = asyncio.get_running_loop()
+        result = await loop.run_in_executor(None, self.runner.process, self.seq, frame_idx)
 
         # Get timestamp if available
         timestamp = 0.0
@@ -101,10 +105,17 @@ class PlaybackManager:
     async def _playback_loop(self) -> None:
         while self.is_playing:
             try:
+                t0 = asyncio.get_event_loop().time()
                 await self.emit_current_frame()
                 self.current_idx = (self.current_idx + 1) % max(1, self.total_frames)
-                interval = max(0.01, 0.1 / self.speed)  # 10 Hz base sensor rate
-                await asyncio.sleep(interval)
+
+                # Sleep only for whatever remains of the 10 Hz window after processing.
+                # If processing took longer than the target interval, run next frame immediately.
+                target = 0.1 / self.speed  # seconds per frame (0.1 s = 10 Hz at speed 1×)
+                elapsed = asyncio.get_event_loop().time() - t0
+                remaining = target - elapsed
+                if remaining > 0:
+                    await asyncio.sleep(remaining)
             except asyncio.CancelledError:
                 break
             except Exception as exc:
@@ -127,7 +138,7 @@ def get_playback_manager() -> PlaybackManager:
 
 
 @sio.on("connect", namespace="/fovea")
-async def on_connect(sid: str, environ: dict) -> None:
+async def on_connect(sid: str, environ: dict, auth: dict | None = None) -> None:
     if _manager:
         await sio.emit("state_update", _manager.get_state(), to=sid, namespace="/fovea")
         # Emit initial frame upon connection
@@ -138,18 +149,21 @@ async def on_connect(sid: str, environ: dict) -> None:
 async def on_seek_frame(sid: str, data: dict) -> None:
     if _manager and "frame_idx" in data:
         await _manager.seek(int(data["frame_idx"]))
+        await sio.emit("state_update", _manager.get_state(), namespace="/fovea")
 
 
 @sio.on("play", namespace="/fovea")
 async def on_play(sid: str, data: Any = None) -> None:
     if _manager:
         await _manager.play()
+        await sio.emit("state_update", _manager.get_state(), namespace="/fovea")
 
 
 @sio.on("pause", namespace="/fovea")
 async def on_pause(sid: str, data: Any = None) -> None:
     if _manager:
         await _manager.pause()
+        await sio.emit("state_update", _manager.get_state(), namespace="/fovea")
 
 
 @sio.on("step", namespace="/fovea")
@@ -157,9 +171,11 @@ async def on_step(sid: str, data: dict = None) -> None:
     if _manager:
         delta = int(data.get("delta", 1)) if data else 1
         await _manager.step(delta)
+        await sio.emit("state_update", _manager.get_state(), namespace="/fovea")
 
 
 @sio.on("set_speed", namespace="/fovea")
 async def on_set_speed(sid: str, data: dict) -> None:
     if _manager and "speed" in data:
         _manager.set_speed(float(data["speed"]))
+        await sio.emit("state_update", _manager.get_state(), namespace="/fovea")

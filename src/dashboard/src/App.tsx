@@ -73,13 +73,13 @@ export const App: React.FC = () => {
             activeLayer={activeLayer}
             onLayerChange={setActiveLayer}
           />
+        </section>
+
+        <aside className="telemetry-sidebar-col">
           <PlaybackControls
             state={playbackState}
             currentFrameIdx={currentFrameIdx}
           />
-        </section>
-
-        <aside className="telemetry-sidebar-col">
           <MemoryMeter memory={frame?.memory} />
           <LatencyPanel timings={frame?.timings_ms} counters={frame?.counters} />
         </aside>

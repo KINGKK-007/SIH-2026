@@ -1,0 +1,212 @@
+{
+  "experiment": "frame_alignment",
+  "criterion": "pooled median NN < 0.15 m on spec classes [50, 40, 70] and on compact classes [80, 71, 81]; identity control on moving pairs must be >= 0.15 m",
+  "threshold_m": 0.15,
+  "max_range_m": 30.0,
+  "min_motion_m": 0.3,
+  "sequences": [
+    "08"
+  ],
+  "n_pairs": 20,
+  "seed": 1337,
+  "spec": {
+    "median_m": 0.044777273249811005,
+    "p90_m": 0.17839441706189554,
+    "n": 1459033
+  },
+  "compact": {
+    "median_m": 0.038764956256736774,
+    "p90_m": 0.08900928461009638,
+    "n": 24166
+  },
+  "identity_control": {
+    "median_m": 0.6308765944652653,
+    "p90_m": 0.9258635181935774,
+    "n": 24166
+  },
+  "worst_pair_compact_median_m": 0.06421625699699203,
+  "verdict": "PASS",
+  "passed": true,
+  "pairs": [
+    {
+      "sequence": "08",
+      "frame": 243,
+      "ego_translation_m": 0.8823569477316754,
+      "spec_median_m": 0.06439009460011114,
+      "compact_median_m": 0.03954291727993464,
+      "compact_n": 3306,
+      "identity_compact_median_m": 0.7749788766275834
+    },
+    {
+      "sequence": "08",
+      "frame": 471,
+      "ego_translation_m": 0.8525273285341849,
+      "spec_median_m": 0.047335785318093994,
+      "compact_median_m": 0.03681394711882974,
+      "compact_n": 1486,
+      "identity_compact_median_m": 0.7032274574037218
+    },
+    {
+      "sequence": "08",
+      "frame": 671,
+      "ego_translation_m": 0.862196333216208,
+      "spec_median_m": 0.04087909899621377,
+      "compact_median_m": 0.043834878445126194,
+      "compact_n": 182,
+      "identity_compact_median_m": 0.768386045128897
+    },
+    {
+      "sequence": "08",
+      "frame": 753,
+      "ego_translation_m": 0.9499572125373678,
+      "spec_median_m": 0.05593455948573853,
+      "compact_median_m": 0.06421625699699203,
+      "compact_n": 117,
+      "identity_compact_median_m": 0.8654097086822267
+    },
+    {
+      "sequence": "08",
+      "frame": 788,
+      "ego_translation_m": 0.5317892795640213,
+      "spec_median_m": 0.05946264101228119,
+      "compact_median_m": 0.04399123291961036,
+      "compact_n": 472,
+      "identity_compact_median_m": 0.667662151255671
+    },
+    {
+      "sequence": "08",
+      "frame": 1125,
+      "ego_translation_m": 1.0266714119003892,
+      "spec_median_m": 0.045380203646002495,
+      "compact_median_m": 0.05757315875805888,
+      "compact_n": 551,
+      "identity_compact_median_m": 0.9334965036853021
+    },
+    {
+      "sequence": "08",
+      "frame": 1176,
+      "ego_translation_m": 1.0054550416663959,
+      "spec_median_m": 0.046325804584635415,
+      "compact_median_m": 0.030639732669363828,
+      "compact_n": 731,
+      "identity_compact_median_m": 0.9005601848529344
+    },
+    {
+      "sequence": "08",
+      "frame": 1390,
+      "ego_translation_m": 0.570874670097658,
+      "spec_median_m": 0.057399920078113384,
+      "compact_median_m": 0.05550250141868404,
+      "compact_n": 336,
+      "identity_compact_median_m": 0.4600111393239219
+    },
+    {
+      "sequence": "08",
+      "frame": 1589,
+      "ego_translation_m": 0.33839236695842995,
+      "spec_median_m": 0.0420626838180717,
+      "compact_median_m": 0.03870176146030937,
+      "compact_n": 1215,
+      "identity_compact_median_m": 0.2269500670845268
+    },
+    {
+      "sequence": "08",
+      "frame": 1875,
+      "ego_translation_m": 1.0717972911573592,
+      "spec_median_m": 0.05092922926840357,
+      "compact_median_m": 0.042369915116135436,
+      "compact_n": 2909,
+      "identity_compact_median_m": 0.6706904638175792
+    },
+    {
+      "sequence": "08",
+      "frame": 2017,
+      "ego_translation_m": 0.709272926111626,
+      "spec_median_m": 0.04087416578953082,
+      "compact_median_m": 0.03148704041445075,
+      "compact_n": 2334,
+      "identity_compact_median_m": 0.576767389472145
+    },
+    {
+      "sequence": "08",
+      "frame": 2191,
+      "ego_translation_m": 0.6011925904946278,
+      "spec_median_m": 0.031016390307814324,
+      "compact_median_m": 0.027460553122828777,
+      "compact_n": 871,
+      "identity_compact_median_m": 0.4875573840151098
+    },
+    {
+      "sequence": "08",
+      "frame": 2214,
+      "ego_translation_m": 0.9164936412055489,
+      "spec_median_m": 0.04286469582338953,
+      "compact_median_m": 0.042372520962487406,
+      "compact_n": 706,
+      "identity_compact_median_m": 0.7974466226810042
+    },
+    {
+      "sequence": "08",
+      "frame": 2299,
+      "ego_translation_m": 0.7241737431541212,
+      "spec_median_m": 0.03565316459787296,
+      "compact_median_m": 0.04190392505173059,
+      "compact_n": 168,
+      "identity_compact_median_m": 0.6405904520928671
+    },
+    {
+      "sequence": "08",
+      "frame": 2947,
+      "ego_translation_m": 0.6354377597321016,
+      "spec_median_m": 0.05252409922019771,
+      "compact_median_m": 0.04159348580248848,
+      "compact_n": 4143,
+      "identity_compact_median_m": 0.1687492829297474
+    },
+    {
+      "sequence": "08",
+      "frame": 3551,
+      "ego_translation_m": 1.0101006006240567,
+      "spec_median_m": 0.036864860918833384,
+      "compact_median_m": 0.053451852506068986,
+      "compact_n": 321,
+      "identity_compact_median_m": 0.8293406252019803
+    },
+    {
+      "sequence": "08",
+      "frame": 3559,
+      "ego_translation_m": 1.0019854500553806,
+      "spec_median_m": 0.03849498218570281,
+      "compact_median_m": 0.049068292399361155,
+      "compact_n": 876,
+      "identity_compact_median_m": 0.8698248880729038
+    },
+    {
+      "sequence": "08",
+      "frame": 3657,
+      "ego_translation_m": 0.8797514608087152,
+      "spec_median_m": 0.042874417812224286,
+      "compact_median_m": 0.033147736120012705,
+      "compact_n": 1129,
+      "identity_compact_median_m": 0.7720677928179485
+    },
+    {
+      "sequence": "08",
+      "frame": 3736,
+      "ego_translation_m": 0.3750574074716104,
+      "spec_median_m": 0.04482764336351969,
+      "compact_median_m": 0.030193876723212644,
+      "compact_n": 1783,
+      "identity_compact_median_m": 0.27381591112078846
+    },
+    {
+      "sequence": "08",
+      "frame": 3842,
+      "ego_translation_m": 1.1515904311338423,
+      "spec_median_m": 0.04724848360835383,
+      "compact_median_m": 0.03764103623388701,
+      "compact_n": 530,
+      "identity_compact_median_m": 0.9111227707745262
+    }
+  ]
+}

@@ -117,26 +117,27 @@ def extract_padded_ring(
         xs_mm = (np.arange(side + 2, dtype=np.int64) - 1 - r_curr.offset) * r_curr.cell_mm + r_curr.cell_mm // 2
         ys_mm = (np.arange(side + 2, dtype=np.int64) - 1 - r_curr.offset) * r_curr.cell_mm + r_curr.cell_mm // 2
 
-        # Outer border rows (0 and side + 1)
+        ix_next_all = np.floor_divide(xs_mm, r_next.cell_mm) + r_next.offset  # (side+2,)
+        iy_next_all = np.floor_divide(ys_mm, r_next.cell_mm) + r_next.offset  # (side+2,)
+        valid_ix = (ix_next_all >= 0) & (ix_next_all < r_next.side)
+        valid_iy = (iy_next_all >= 0) & (iy_next_all < r_next.side)
+
+        # Outer border rows (0 and side + 1) — vectorised over px
         for py in (0, side + 1):
             y_mm = ys_mm[py]
             iy_next = int(np.floor_divide(y_mm, r_next.cell_mm) + r_next.offset)
             if 0 <= iy_next < r_next.side:
-                ix_next = np.floor_divide(xs_mm, r_next.cell_mm) + r_next.offset
-                valid_x = (0 <= ix_next) & (ix_next < r_next.side)
-                for px in range(side + 2):
-                    if valid_x[px]:
-                        padded[py, px] = next_ring[iy_next, ix_next[px]]
+                px_valid = np.where(valid_ix)[0]
+                if len(px_valid):
+                    padded[py, px_valid] = next_ring[iy_next, ix_next_all[px_valid]]
 
-        # Outer border columns (0 and side + 1)
+        # Outer border columns (0 and side + 1) — vectorised over py
         for px in (0, side + 1):
             x_mm = xs_mm[px]
             ix_next = int(np.floor_divide(x_mm, r_next.cell_mm) + r_next.offset)
             if 0 <= ix_next < r_next.side:
-                iy_next = np.floor_divide(ys_mm, r_next.cell_mm) + r_next.offset
-                valid_y = (0 <= iy_next) & (iy_next < r_next.side)
-                for py in range(side + 2):
-                    if valid_y[py]:
-                        padded[py, px] = next_ring[iy_next[py], ix_next]
+                py_valid = np.where(valid_iy)[0]
+                if len(py_valid):
+                    padded[py_valid, px] = next_ring[iy_next_all[py_valid], ix_next]
 
     return padded

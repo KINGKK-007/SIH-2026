@@ -8,3 +8,5 @@ vehicle_height_m: 2.0
 clearance_margin_m: 0.2
 halo: true
 fill_missing_ground: false    # optional inpainting of empty ground cells (off by default)
+# Skip slope/step/clearance for real-time playback (saves ~500ms per frame -> ~10 Hz)
+fast_mode: true

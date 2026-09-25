@@ -20,8 +20,10 @@ export const LatencyPanel: React.FC<LatencyPanelProps> = ({ timings, counters })
     { key: "io_ms", label: "I/O Scan Load", color: "#3498db" },
     { key: "model_ms", label: "Model / Oracle", color: "#9b59b6" },
     { key: "label_ms", label: "Label Mapping", color: "#f1c40f" },
+    { key: "motion_ms", label: "Motion / Objects", color: "#e74c3c" },
     { key: "grid_ms", label: "Grid Rasterise", color: "#2ecc71" },
     { key: "finalize_ms", label: "Finalize Layers", color: "#e67e22" },
+    { key: "derived_ms", label: "Derived Layers", color: "#8e44ad" },
     { key: "memory_ms", label: "Memory Report", color: "#1abc9c" },
   ];
 

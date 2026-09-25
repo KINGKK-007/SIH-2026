@@ -29,46 +29,49 @@ def compute_slope_deg(layers: GridLayers, cfg: object) -> list[np.ndarray]:
 
         center_flags = padded["flags"][1:-1, 1:-1]
         center_has_g = (center_flags & FLAG_HAS_GROUND) != 0
-        center_gz = padded["ground_z"][1:-1, 1:-1].astype(np.float64)
+        center_gz = padded["ground_z"][1:-1, 1:-1].astype(np.float32)
 
         # Neighbours in X
         right_flags = padded["flags"][1:-1, 2:]
         right_has_g = (right_flags & FLAG_HAS_GROUND) != 0
-        right_gz = padded["ground_z"][1:-1, 2:].astype(np.float64)
+        right_gz = padded["ground_z"][1:-1, 2:].astype(np.float32)
 
         left_flags = padded["flags"][1:-1, :-2]
         left_has_g = (left_flags & FLAG_HAS_GROUND) != 0
-        left_gz = padded["ground_z"][1:-1, :-2].astype(np.float64)
+        left_gz = padded["ground_z"][1:-1, :-2].astype(np.float32)
+
+        inv_cell = np.float32(1.0 / cell_mm)
+        inv_2cell = np.float32(0.5 / cell_mm)
 
         both_x = right_has_g & left_has_g
         only_right = right_has_g & ~left_has_g & center_has_g
         only_left = left_has_g & ~right_has_g & center_has_g
 
-        gx = np.zeros((side, side), dtype=np.float64)
-        gx[both_x] = (right_gz[both_x] - left_gz[both_x]) / (2.0 * cell_mm)
-        gx[only_right] = (right_gz[only_right] - center_gz[only_right]) / cell_mm
-        gx[only_left] = (center_gz[only_left] - left_gz[only_left]) / cell_mm
+        gx = np.zeros((side, side), dtype=np.float32)
+        gx[both_x] = (right_gz[both_x] - left_gz[both_x]) * inv_2cell
+        gx[only_right] = (right_gz[only_right] - center_gz[only_right]) * inv_cell
+        gx[only_left] = (center_gz[only_left] - left_gz[only_left]) * inv_cell
 
         # Neighbours in Y
         top_flags = padded["flags"][2:, 1:-1]
         top_has_g = (top_flags & FLAG_HAS_GROUND) != 0
-        top_gz = padded["ground_z"][2:, 1:-1].astype(np.float64)
+        top_gz = padded["ground_z"][2:, 1:-1].astype(np.float32)
 
         bot_flags = padded["flags"][:-2, 1:-1]
         bot_has_g = (bot_flags & FLAG_HAS_GROUND) != 0
-        bot_gz = padded["ground_z"][:-2, 1:-1].astype(np.float64)
+        bot_gz = padded["ground_z"][:-2, 1:-1].astype(np.float32)
 
         both_y = top_has_g & bot_has_g
         only_top = top_has_g & ~bot_has_g & center_has_g
         only_bot = bot_has_g & ~top_has_g & center_has_g
 
-        gy = np.zeros((side, side), dtype=np.float64)
-        gy[both_y] = (top_gz[both_y] - bot_gz[both_y]) / (2.0 * cell_mm)
-        gy[only_top] = (top_gz[only_top] - center_gz[only_top]) / cell_mm
-        gy[only_bot] = (center_gz[only_bot] - bot_gz[only_bot]) / cell_mm
+        gy = np.zeros((side, side), dtype=np.float32)
+        gy[both_y] = (top_gz[both_y] - bot_gz[both_y]) * inv_2cell
+        gy[only_top] = (top_gz[only_top] - center_gz[only_top]) * inv_cell
+        gy[only_bot] = (center_gz[only_bot] - bot_gz[only_bot]) * inv_cell
 
         grad_mag = np.sqrt(gx * gx + gy * gy)
-        deg = np.degrees(np.arctan(grad_mag))
+        deg = np.degrees(np.arctan(grad_mag)).astype(np.float32)
         deg[~center_has_g] = np.nan
         slopes.append(deg)
 

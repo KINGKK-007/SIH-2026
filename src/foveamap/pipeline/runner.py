@@ -8,6 +8,17 @@ Every stage is wrapped with ``perf_counter_ns`` timers; the ``timings_ms`` dict 
 stage names so the dashboard (Phase 13) can display them without modification.
 
 The ``cached`` and ``live`` modes are stubs filled in Phases 9 and 13 respectively.
+
+GPU acceleration
+----------------
+Pass ``device='cuda'`` (or ``'auto'`` when CuPy is installed) to run the two most expensive
+stages — grid rasterisation and motion range-residual detection — on the GPU:
+
+* The grid backend is selected once in ``__init__`` via ``get_backend()``.
+* The ``device`` string is threaded through to ``estimate_motion`` so the range-image computation
+  also uses GPU when available.
+* Stages that use structured dtypes (finalize, derived layers) remain on CPU; they receive plain
+  NumPy arrays from the GPU-backed stages with no extra copies.
 """
 
 from __future__ import annotations
@@ -16,8 +27,12 @@ from dataclasses import dataclass
 from time import perf_counter_ns
 from typing import Literal
 
+import numpy as np
+
 from foveamap.derived import compute_derived_layers
+from foveamap.gpu_utils import device_to_backend_name
 from foveamap.grid.accumulators import FrameCounters
+from foveamap.grid.backends import get_backend
 from foveamap.grid.engine import rasterize
 from foveamap.grid.layers import GridLayers, finalize
 from foveamap.grid.memory import MemoryReport, memory_report
@@ -72,23 +87,53 @@ class PipelineRunner:
         model: object,
         preset: GridSpec,
         cfgs: object,
+        device: str = "auto",
     ) -> None:
+        """Initialise the pipeline runner.
+
+        Args:
+            mode:   ``"oracle"`` (ground-truth labels), ``"cached"`` (predictions from disk),
+                    or ``"live"`` (real-time network; Phase 13).
+            model:  Any object implementing the
+                    :class:`~foveamap.models.base.SegmentationModel` protocol.
+            preset: The active :class:`~foveamap.grid.presets.GridSpec`.
+            cfgs:   The loaded :class:`~foveamap.config.FoveaConfig` (or a bare ``GridConfig``).
+            device: Processing device — ``'auto'`` (default), ``'cuda'`` / ``'cupy'`` for GPU,
+                    or ``'cpu'`` to force NumPy.  When ``'auto'``, CuPy is used if available.
+        """
         if mode not in ("oracle", "cached", "live"):
             raise ValueError(f"unknown mode {mode!r}")
         if mode == "live":
             raise NotImplementedError("mode='live' is implemented in Phase 13 (docs/PHASES.md).")
-        self.mode = mode
-        self.model = model
+        self.mode   = mode
+        self.model  = model
         self.preset = preset
+        self.device = device
+
         # Accept either a FoveaConfig or bare GridConfig
         try:
             self.grid_cfg = cfgs.grid  # type: ignore[union-attr]
         except AttributeError:
             self.grid_cfg = cfgs
         self.derived_cfg = getattr(cfgs, "derived", None)
-        self.motion_cfg = getattr(cfgs, "motion", None)
+        self.motion_cfg  = getattr(cfgs, "motion", None)
+
+        # Build grid backend once; ``device`` overrides the backend field in grid_cfg.
+        _cfg_backend = getattr(self.grid_cfg, "backend", "auto")
+        backend_name = device_to_backend_name(device, _cfg_backend)
+        self.backend = get_backend(backend_name)
+
         from foveamap.motion.tracker import ClusterTracker
         self.tracker = ClusterTracker(self.motion_cfg)
+
+        # Log which backend was selected (visible in --dry-run output and server startup)
+        import warnings
+        _dev_label = f"device={device!r} → backend={self.backend.name!r}"
+        if backend_name == "cupy" and self.backend.name != "cupy":
+            warnings.warn(f"GPU backend requested but not available; using {self.backend.name!r}")
+        # Non-warning info line goes to stderr so it doesn't pollute JSON output
+        import sys
+        print(f"[foveamap] PipelineRunner: {_dev_label}", file=sys.stderr)
 
     def process(self, seq: Sequence, idx: int) -> FrameResult:
         """Run the pipeline for one frame and return a :class:`FrameResult`.
@@ -139,6 +184,7 @@ class PipelineRunner:
                 transforms=[],
                 cfg=self.motion_cfg,
                 use_oracle=True,
+                device=self.device,
             )
             objects = classified.objects
             super_cls = classified.super_cls
@@ -165,6 +211,7 @@ class PipelineRunner:
                 transforms=transforms,
                 cfg=self.motion_cfg,
                 use_oracle=False,
+                device=self.device,
             )
             T_prev = transforms[0] if transforms else None
             objects = self.tracker.update(classified.objects, T_prev)
@@ -175,7 +222,7 @@ class PipelineRunner:
 
         timings_ns["motion_ms"] = perf_counter_ns() - t0
 
-        # Stage 4: Grid rasterisation
+        # Stage 4: Grid rasterisation (uses GPU backend when device='cuda')
         t0 = perf_counter_ns()
         acc = rasterize(
             self.preset,
@@ -184,6 +231,7 @@ class PipelineRunner:
             moving,
             conf,
             min_range_mm=self.grid_cfg.min_range_mm,
+            backend=self.backend,
         )
         timings_ns["grid_ms"] = perf_counter_ns() - t0
 

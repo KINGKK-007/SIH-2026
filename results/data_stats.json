@@ -1,0 +1,95 @@
+{
+  "experiment": "data_stats",
+  "buckets_m": [
+    0.0,
+    10.0,
+    30.0,
+    60.0,
+    100.0
+  ],
+  "bucket_labels": [
+    "0-10 m",
+    "10-30 m",
+    "30-60 m",
+    "60-100 m"
+  ],
+  "note": "object instances are counted once per frame they appear in (bucketed by centroid range)",
+  "sequences": [
+    {
+      "sequence": "08",
+      "frames_used": 408,
+      "frame_stride": 10,
+      "points": [
+        30551771,
+        16245974,
+        2778782,
+        429842
+      ],
+      "points_beyond_last_bucket": 0,
+      "super_class_points": {
+        "UNKNOWN": [
+          373086,
+          29960,
+          475786,
+          421771
+        ],
+        "DRIVABLE": [
+          6900445,
+          2367918,
+          186086,
+          10
+        ],
+        "NON_DRIVABLE_TERRAIN": [
+          8540451,
+          3577330,
+          371131,
+          551
+        ],
+        "STATIC_OBSTACLE": [
+          14643024,
+          10197327,
+          1738348,
+          7510
+        ],
+        "DYNAMIC": [
+          94765,
+          73439,
+          7431,
+          0
+        ]
+      },
+      "moving_points": [
+        91262,
+        67242,
+        6668,
+        0
+      ],
+      "safety_critical_points": [
+        46394,
+        31779,
+        3320,
+        0
+      ],
+      "object_instances": {
+        "vehicle_static": [
+          911,
+          2465,
+          1992,
+          8
+        ],
+        "vehicle_moving": [
+          19,
+          102,
+          92,
+          0
+        ],
+        "person_cyclist": [
+          74,
+          344,
+          187,
+          0
+        ]
+      }
+    }
+  ]
+}

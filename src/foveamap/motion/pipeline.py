@@ -29,6 +29,7 @@ def estimate_motion(
     transforms: list[np.ndarray],
     cfg: Any,
     use_oracle: bool = False,
+    device: str = "auto",
 ) -> ClassifiedScan:
     """Return ``cur`` with ``moving``/``super_cls`` promoted and ``objects`` filled.
 
@@ -73,25 +74,34 @@ def estimate_motion(
         objects: list[ObjectBox] = []
         unique_insts = np.unique(inst_ids[inst_ids > 0])
 
+        # Pre-flag which instances contain at least one moving point — O(n_pts) once
+        # instead of calling np.any(moving_mask[inst_mask]) inside the loop per instance.
+        moving_inst_ids = set(inst_ids[moving_mask & (inst_ids > 0)].tolist())
+
         for inst in unique_insts:
             inst_mask = inst_ids == inst
             n_inst_pts = int(np.sum(inst_mask))
             if n_inst_pts < min_points:
                 continue
 
-            pts = cur_xyz[inst_mask]
-            center, size, yaw = oriented_box(pts, angle_step_deg=angle_step)
-
-            # Majority semantic class
+            # Majority semantic class (fast — just bincount)
             inst_sems = sem_ids[inst_mask]
             maj_id = int(np.bincount(inst_sems).argmax())
             info = LABELS.get(maj_id)
             cls_name = info.name if info else f"class_{maj_id}"
-
-            is_inst_moving = bool(np.any(moving_mask[inst_mask]))
-            vote_frac = float(np.mean(moving_mask[inst_mask]))
+            is_safety = bool(info.safety_critical if info else False)
+            is_inst_moving = (int(inst) in moving_inst_ids)
             is_vru = cls_name in VULNERABLE_ROAD_USERS
-            safety_crit = bool(info.safety_critical if info else False) or is_inst_moving or is_vru
+
+            # Skip static non-safety instances — oriented_box is the bottleneck (~2ms each)
+            if not is_inst_moving and not is_safety and not is_vru:
+                continue
+
+            pts = cur_xyz[inst_mask]
+            center, size, yaw = oriented_box(pts, angle_step_deg=angle_step)
+
+            vote_frac = float(np.mean(moving_mask[inst_mask]))
+            safety_crit = is_safety or is_inst_moving or is_vru
 
             mean_conf = float(np.mean(conf[inst_mask])) if len(conf) == n_pts else 255.0
 
@@ -130,7 +140,7 @@ def estimate_motion(
         votes_list: list[np.ndarray] = []
         for (prev_scan, _), T_prev_to_cur in zip(prev_scans, transforms):
             prev_xyz_in_cur = transform_points(T_prev_to_cur, prev_scan.xyz)
-            v = range_residual_votes(cur_xyz, prev_xyz_in_cur, cfg)
+            v = range_residual_votes(cur_xyz, prev_xyz_in_cur, cfg, device=device)
             votes_list.append(v)
 
         if len(votes_list) == 1:

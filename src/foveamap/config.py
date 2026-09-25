@@ -114,7 +114,7 @@ class ClassThresholds(_Strict):
 
 
 class GridConfig(_Strict):
-    backend: Literal["auto", "numpy", "cpp"] = "auto"
+    backend: Literal["auto", "numpy", "cpp", "cupy"] = "auto"
     extent_m: PositiveMetres
     min_range_m: NonNegativeMetres
     z_range_m: tuple[Metres, Metres]
@@ -295,6 +295,7 @@ class DerivedConfig(_Strict):
     clearance_margin_m: NonNegativeMetres
     halo: bool
     fill_missing_ground: bool
+    fast_mode: bool = False
 
     @model_validator(mode="after")
     def _ordered_steps(self) -> DerivedConfig:
