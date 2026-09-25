@@ -38,6 +38,7 @@ __all__ = [
     "FoveaConfig",
     "GridConfig",
     "HazardConfig",
+    "LSK3DNetConfig",
     "ModelConfig",
     "MotionConfig",
     "load_config",
@@ -169,30 +170,33 @@ class ModelInputConfig(_Strict):
     mean: list[float] | None = None
     std: list[float] | None = None
 
-    # LSK3DNet-specific (ignored for other models) ─────────────────────────────
-    input_dims: int | None = Field(default=None, gt=0)
-    voxel_size: float | None = Field(default=None, gt=0)
-    model_x_range: tuple[float, float] | None = None
-    model_y_range: tuple[float, float] | None = None
-    model_z_range: tuple[float, float] | None = None
-    grid_shape: list[int] | None = None
-
-
-class Lsk3dnetConfig(_Strict):
-    """LSK3DNet-specific settings (Phase 8, T8.1)."""
-
-    model_class: str = "largekernelseg"
-    num_classes: int = Field(default=20, ge=1)
-    ignore_class: int = Field(default=0, ge=0)
-
 
 class FinetuneConfig(_Strict):
     enabled: bool = False
     distance_weight_alpha: float = Field(default=1.0, ge=0)
 
 
+class LSK3DNetConfig(_Strict):
+    """Sparse large-kernel network settings (docs/DECISIONS.md D-022 overrides README L11).
+
+    Not part of README 8.2; this section only exists because the production model family was switched
+    from range-view to sparse-voxel. Values not covered here (voxel spatial shape, volume-space crop,
+    class count, kernel size) come from the checkpoint's own ``config_path`` and must not be duplicated
+    or guessed here (README 3.1).
+    """
+
+    repo_dir: str = Field(description="vendored LSK3DNet checkout, path relative to the repo root")
+    config_path: str = Field(description="the checkpoint's own training/eval YAML, read as-is")
+    half_precision: bool = Field(
+        default=True, description="torch.autocast fp16 forward pass; needed to fit a 6 GB laptop GPU"
+    )
+    vram_budget_gb: float = Field(gt=0, description="target GPU VRAM; drives batch-of-one, cache-clearing")
+    empty_cache_every_scan: bool = True
+
+
 class ModelConfig(_Strict):
     name: str | None = None
+    family: Literal["rangeview", "sparse_voxel"] = "rangeview"
     checkpoint: str | None = None
     device: Literal["cuda", "cpu"] = "cuda"
     input: ModelInputConfig
@@ -200,7 +204,13 @@ class ModelConfig(_Strict):
     cache_dir: str
     seed: int
     finetune: FinetuneConfig
-    lsk3dnet: Lsk3dnetConfig | None = None   # populated only when name == "lsk3dnet"
+    lsk3dnet: LSK3DNetConfig | None = None
+
+    @model_validator(mode="after")
+    def _family_needs_its_section(self) -> ModelConfig:
+        if self.family == "sparse_voxel" and self.lsk3dnet is None:
+            raise ValueError("model.yaml: family 'sparse_voxel' requires an 'lsk3dnet:' section")
+        return self
 
 
 # ── motion.yaml (README 8.3) ────────────────────────────────────────────────

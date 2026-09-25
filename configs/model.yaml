@@ -1,51 +1,30 @@
-# Segmentation model (README 8.2, T8.1 — Model Selection Gate).
-# Model: LSK3DNet (CVPR 2024) — Large Sparse Kernel 3D Neural Network.
-# Paper: https://arxiv.org/abs/2403.15173
-# Code:  https://github.com/FengZicai/LSK3DNet
+# Segmentation model (README 8.2).
 #
-# All values copied from the checkpoint's own config (lk-semantickitti_sub_tta.yaml).
-# Do NOT guess or change these without regenerating the checkpoint's normalization stats.
-
-name: lsk3dnet                    # model class identifier used by models/lsk3dnet_adapter.py
-checkpoint: configs/weights/lsk3dnet_semantickitti.pt
-                                  # ↑ place your downloaded checkpoint here (see docs/SETUP_MODEL.md)
-device: cuda                      # cuda | cpu  (falls back to cpu if CUDA unavailable)
-
+# D-022 (docs/DECISIONS.md) overrides README L11: the production model is LSK3DNet (a pretrained
+# sparse large-kernel voxel network, CVPR 2024, 75.6% mIoU on the SemanticKITTI val split) instead of
+# a range-view network (SalsaNext/CENet/RangeNet++). `family: sparse_voxel` selects
+# `foveamap.models.lsk3dnet.LSK3DNetModel`; `input:` below is unused in that family and kept null.
+name: "lsk3dnet"
+family: "sparse_voxel"         # "rangeview" | "sparse_voxel"
+checkpoint: "configs/weights/opensource_9ks_s030_w64_0.pt"   # [HUMAN] download, see configs/weights/WEIGHTS.md
+device: cuda                   # cached mode (models/cache.py) needs no GPU; live/caching needs cuda
 input:
-  # Range image projection parameters (from LSK3DNet dataloader/pc_dataset.py)
-  height: 64                      # range image rows  (proj_H)
-  width: 900                      # range image cols  (proj_W)
-  fov_up_deg: 3.0                 # HDL-64E LIDAR upper FOV
-  fov_down_deg: -25.0             # HDL-64E LIDAR lower FOV
-
-  # Voxel feature input specification
-  input_dims: 13                  # 4 raw + 3 voxel-mean-centred + 3 voxel-offset + 3 normals
-  voxel_size: 0.05                # metres (isotropic 5 cm cube)
-  # Spatial extent consumed by the model (different from the FoveaMap grid extent)
-  model_x_range: [-50.0, 50.0]   # metres — X (forward/back) limit clipped before voxelisation
-  model_y_range: [-50.0, 50.0]   # metres — Y (left/right) limit
-  model_z_range: [-4.0,   2.0]   # metres — Z (vertical) limit
-  # Voxel grid shape (derived: (x_range / voxel_size) = 2000, etc.)
-  grid_shape: [2000, 2000, 120]  # [X_cells, Y_cells, Z_cells]
-
-  # Mean/std for normalisation: LSK3DNet uses no global per-channel normalisation;
-  # normalisation happens implicitly via the PPmodel MLP + batch-norm.
-  # Set to null to signal "no external normalisation needed".
+  height: null
+  width: null
+  fov_up_deg: null
+  fov_down_deg: null
   mean: null
-  std:  null
-
-knn_postprocess: true             # KNN label refinement on final output (as in test_skitti.py)
-cache_dir: data/cache/pred        # where prediction .bin files are cached (Phase 9)
+  std: null
+knn_postprocess: false         # LSK3DNet has no range-image back-projection stage
+cache_dir: data/cache/pred
 seed: 1337
-
-finetune:                         # P2, optional — distance-weighted fine-tuning
+finetune:
   enabled: false
   distance_weight_alpha: 1.0
 
-# ── LSK3DNet-specific settings (read by lsk3dnet_adapter.py) ─────────────────
 lsk3dnet:
-  model_class: largekernelseg     # class name registered in network/__init__.py
-  num_classes: 20                 # 19 valid + 1 ignore (class 0 = unlabelled)
-  ignore_class: 0
-  # Dependency: spconv-cu113==2.1.21  (torch 1.11+cu113)
-  # The adapter checks for spconv at import time and raises a clear error if missing.
+  repo_dir: "LSK3DNet-main"
+  config_path: "LSK3DNet-main/config/lk-semantickitti_sub_tta.yaml"
+  half_precision: true
+  vram_budget_gb: 6.0           # the inference GPU is a teammate's RTX 4050 laptop (6 GB), not this dev machine
+  empty_cache_every_scan: true

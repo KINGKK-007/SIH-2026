@@ -87,3 +87,11 @@ Built before Gate 4 (D-020).
 - `docs/design/protocol.md` exists ✅
 
 **T7.5 note:** p95 grid latency = 133 ms > 100 ms threshold; numba/C++ fast path to be implemented (T7.5, tier P2). The NumPy backend remains the correctness oracle.
+
+## Phase 8 — Segmentation Model Selection & Integration
+
+- 2026-09-25 · T8.2 · D-022/D-023/D-024/D-025: production model switched to LSK3DNet (sparse-voxel network, CVPR 2024); `configs/model.yaml` + `src/foveamap/config.py` updated with `LSK3DNetConfig` (family: sparse_voxel); `src/foveamap/models/lsk3dnet.py` (`LSK3DNetModel`) implemented with single-scan batching, fp16 autocast, empty_cache, and crop out-of-range protection (D-024); vendored `LSK3DNet-main/` placed at repo root and imported in-place (D-025); `docs/MODEL_CARD.md` and `configs/weights/WEIGHTS.md` created with RTX 4050 target setup guide. 74 config tests pass. `LSK3DNetModel` awaits checkpoint download and GPU stack build on friend's RTX 4050 machine.
+
+## Phase 9 — Prediction Cache & Model Evaluation
+
+- 2026-09-25 · T9.1 + T9.2 · `scripts/cache_predictions.py` implemented (resumable, per-sequence meta.json with SHA-256 and platform provenance); `src/foveamap/models/cache.py` (`CachedModel`) implemented and unit tested (`tests/models/test_cache.py`, 3/3 passed, no GPU needed); `src/foveamap/pipeline/runner.py` and CLI `render` wired to support `--mode cached`. All 653 test suite items pass.

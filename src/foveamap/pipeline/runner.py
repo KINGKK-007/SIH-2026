@@ -74,8 +74,8 @@ class PipelineRunner:
     ) -> None:
         if mode not in ("oracle", "cached", "live"):
             raise ValueError(f"unknown mode {mode!r}")
-        if mode in ("cached", "live"):
-            raise NotImplementedError(f"mode={mode!r} is implemented in Phase 9/13 (docs/PHASES.md).")
+        if mode == "live":
+            raise NotImplementedError("mode='live' is implemented in Phase 13 (docs/PHASES.md).")
         self.mode = mode
         self.model = model
         self.preset = preset

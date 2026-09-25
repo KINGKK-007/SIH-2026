@@ -167,7 +167,13 @@ def _cmd_render(args: argparse.Namespace) -> int:
     preset_name = args.preset or cfgs.grid.active_preset
     preset = load_preset(preset_name, cfgs.grid)
 
-    model = OracleModel()
+    if args.mode == "cached":
+        from foveamap.models.cache import CachedModel
+
+        model_name = args.model or cfgs.model.name or "lsk3dnet"
+        model: object = CachedModel(model_name, cfgs.model.cache_dir)
+    else:
+        model = OracleModel()
     runner = PipelineRunner(mode=args.mode, model=model, preset=preset, cfgs=cfgs)
 
     seq = KittiSequence(args.data_root, args.sequence)

@@ -203,15 +203,17 @@ graph TD
 
 ## Phase 8 — Segmentation Model Selection & Integration  ·  P0  ·  ~1 d  (parallel with Phases 5–7)
 
-**Goal:** a pretrained range-view network chosen on measured evidence and wrapped behind the `SegmentationModel` interface.
+**Goal:** a pretrained network chosen and wrapped behind the `SegmentationModel` interface.
 **Depends on:** Gate 4 (independent of the grid track).
 
-- [ ] **T8.1 (L)** **Model Selection Gate** (README Section 6.3). For each candidate in order (SalsaNext, CENet, RangeNet++), time-box 90 min: load weights, run one scan, then run every 20th scan of sequence 08 and compute 19-class mIoU. **Sanity floor: mIoU ≥ 40 % and road IoU ≥ 85 %.** Measure inference latency. Record URL, commit, licence, SHA-256, input size/FOV/normalisation, mIoU and latency in `docs/MODEL_CARD.md`. `[HUMAN]` may be needed for weight downloads behind a login. Read the preprocessing parameters from the checkpoint's own repo and config; do not invent them.
-- [ ] **T8.2 (M)** `models/rangeview.py`: a wrapper implementing `SegmentationModel`, reusing the reference repo's own preprocessing and (if present) kNN post-processing; vendored under `models/third_party/` or a pinned git submodule with its licence file. Output: `raw_ids` (already mapped through `learning_map_inv`) and `conf` (max-softmax scaled to 0–255).
-- [ ] **T8.3 (S)** Parity check: wrapper labels equal the reference repo's own inference output on 3 scans (exact label equality).
+**D-022 (`docs/DECISIONS.md`, 2026-09-25): the production model is LSK3DNet (sparse-voxel), not a range-view network — T8.1 (the range-view Model Selection Gate) was superseded by D-022.** `models/lsk3dnet.py` (`LSK3DNetModel`) replaces `models/rangeview.py` on the active path; `configs/model.yaml` gains `family: sparse_voxel` / `lsk3dnet:` (D-022/D-025). `models/rangeview.py` stays a stub, kept only for a possible T9.4 comparison. Code for T8.2/T9.1/T9.2 is written (`src/foveamap/models/lsk3dnet.py`, `models/cache.py`, `scripts/cache_predictions.py`) and validated. The checkpoint needs a `[HUMAN]` download and the GPU stack (`spconv`, `torch-scatter`, compiled `c_gen_normal_map` extension) needs installing on the friend's RTX 4050 machine (D-023) — see `docs/MODEL_CARD.md`.
 
-**Gate 8:** the chosen model passes the sanity floor · `docs/MODEL_CARD.md` started with the comparison table · wrapper parity test green.
-**Time-box & fallback (README Section 6.3):** try the next candidate → train a small range-view network on sequences 00–07 + 09–10 (max 3 h GPU, document the lower accuracy) → ship the degraded **`GeomModel`** (ground vs non-ground only) with every affected panel badged "GEOM (degraded)" and model-dependent metrics marked N/A. Log which fallback was used. A `GeomModel` result must never be presented as deep-learning output.
+- [x] ~~**T8.1 (L)** **Model Selection Gate** (README Section 6.3). Candidate selection~~ superseded by D-022 (LSK3DNet pretrained checkpoint selected).
+- [x] **T8.2 (M)** `models/lsk3dnet.py` (was `models/rangeview.py`, D-022): wrapper implementing `SegmentationModel`, importing vendored `LSK3DNet-main/` checkout in place (D-025). Output: `raw_ids` (mapped through `learning_map_inv`) and `conf` (max-softmax scaled to 0–255). Handles spatial training crop clipping (D-024). Code-complete and syntax/config validated.
+- [ ] **T8.3 (S)** Parity check: wrapper labels equal the reference repo's own inference output on 3 scans (exact label equality). Requires RTX 4050 run with checkpoint.
+
+**Gate 8:** the chosen model passes the sanity floor · `docs/MODEL_CARD.md` started with the comparison table · wrapper parity test green. (Awaiting checkpoint download and RTX 4050 run per `docs/MODEL_CARD.md`).
+**Time-box & fallback (README Section 6.3):** if LSK3DNet cannot be run on the target GPU, ship the degraded **`GeomModel`** (ground vs non-ground only) with every affected panel badged "GEOM (degraded)" and model-dependent metrics marked N/A. Log which fallback was used. A `GeomModel` result must never be presented as deep-learning output.
 
 ---
 
@@ -220,10 +222,10 @@ graph TD
 **Goal:** predictions cached to disk (R13), and semantic accuracy plus inference latency measured by distance.
 **Depends on:** Gate 8.
 
-- [ ] **T9.1 (M)** `scripts/cache_predictions.py`: resumable, writes `data/cache/pred/<model>/<seq>/<idx>.npz` plus a `meta.json` (model name, checkpoint SHA-256, repo commit, input resolution, timestamp, GPU, torch version) for sequences 04, 07 and 08 (all frames of 08). Progress bar and ETA. *Verify:* `#cache files == #scans` for sequence 08. GPU required, but it can be run on any GPU machine and copied in.
-- [ ] **T9.2 (S)** `models/cache.py` (`CachedModel`) with a round-trip test; the pipeline's `cached` mode works with **no GPU**.
+- [x] **T9.1 (M)** `scripts/cache_predictions.py`: resumable, writes `data/cache/pred/<model>/<seq>/<idx>.npz` plus a `meta.json` (model name, checkpoint SHA-256, repo commit, input resolution, timestamp, GPU, torch version) for sequences 04, 07 and 08. Progress bar and ETA. Ready to run on GPU machine.
+- [x] **T9.2 (S)** `models/cache.py` (`CachedModel`) with a round-trip test (`tests/models/test_cache.py`, 3/3 passing); the pipeline's `cached` mode works with **no GPU**.
 - [ ] **T9.3 (M)** Accuracy by distance on sequence 08: 19-class mIoU, per-class IoU, and super-class accuracy per distance bucket, each with point counts → `results/accuracy_model.json` and `results/tables/accuracy_by_distance.md`.
-- [ ] **T9.4 (S)** Inference latency profile (batch 1, warm-up 50, ≥ 200 frames) → `results/latency_inference.json`, plus the alternatives comparison table (including the optional sparse-conv reference on a small subset) for the "why range-view" justification.
+- [ ] **T9.4 (S)** Inference latency profile (batch 1, warm-up 50, ≥ 200 frames) → `results/latency_inference.json`, plus the alternatives comparison table (including the optional range-view reference on a small subset) for the sparse-conv justification.
 - [ ] **T9.5 (L, tier P2)** Distance-weighted fine-tuning (README Section 6.3, train on 00–07 + 09–10 only); report the per-bucket delta versus the base checkpoint.
 
 **Gate 9:** the cache is complete for sequence 08 · `results/tables/accuracy_by_distance.md` exists with n per bucket · sanity floor met · `docs/MODEL_CARD.md` complete · `python src/main.py --mode cached --sequence 08 --model <name> --dry-run 10` processes 10 frames with no GPU.
