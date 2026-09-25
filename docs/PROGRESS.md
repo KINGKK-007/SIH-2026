@@ -95,3 +95,19 @@ Built before Gate 4 (D-020).
 ## Phase 9 — Prediction Cache & Model Evaluation
 
 - 2026-09-25 · T9.1 + T9.2 · `scripts/cache_predictions.py` implemented (resumable, per-sequence meta.json with SHA-256 and platform provenance); `src/foveamap/models/cache.py` (`CachedModel`) implemented and unit tested (`tests/models/test_cache.py`, 3/3 passed, no GPU needed); `src/foveamap/pipeline/runner.py` and CLI `render` wired to support `--mode cached`. All 653 test suite items pass.
+
+## Phase 13 — Dashboard Backend & Frontend Scaffold
+
+- 2026-09-25 · T13.1 · `src/foveamap/server/protocol.py`: `serialise_frame_result` implemented conforming to frozen Socket.IO `frame_update` schema; `src/foveamap/server/render.py`: `ring_textures` server-side multi-layer rendering (`class`, `height`, `traversability`, `moving`, `confidence`) with orientation convention `row = N_k - 1 - ix`, `col = N_k - 1 - iy`.
+- 2026-09-25 · T13.2 · `src/foveamap/server/app.py` & `src/foveamap/server/sockets.py`: FastAPI + `python-socketio` ASGI server; `PlaybackManager` background task supporting `play`, `pause`, `step`, `seek`, `speed` across modes (`oracle`, `cached`, `live`); REST API (`/api/health`, `/api/state`, `/api/presets`, `/api/play`, etc.); CLI `foveamap serve` subcommand added.
+- 2026-09-25 · T13.3 · `src/dashboard`: React 18 + Vite + TypeScript application scaffolded; dark glassmorphic UI; components: `Header` (mode badge, display FPS, sequence/preset metadata), `MapView` (multi-ring canvas compositing with pan/zoom, coordinate hover readout, layer selector), `PlaybackControls` (play/pause, frame scrubber, speed selector), `MemoryMeter` (four-representation log-scale comparison with reduction factor badge), `LatencyPanel` (per-stage stacked bar against 100 ms period); `socket.io-client` connected to `/fovea`.
+- 2026-09-25 · T13.4 · Python tests `tests/server/test_render_and_protocol.py` (texture shapes & schema serialization) and `tests/server/test_server_e2e.py` (REST endpoints, asyncio Socket.IO playback loop & frame emission) implemented and passing.
+
+### Gate 13 — passed 2026-09-25
+
+- `pytest tests/server -v`: **4 passed** (texture rendering, protocol serialisation, REST endpoints, asyncio playback loop & client frame updates).
+- `npm run typecheck`: **0 errors**.
+- `npm run build`: **succeeded** (Vite build output in `src/dashboard/dist/`).
+- Python test client confirmed `create_app()` serves `src/dashboard/dist/index.html` at `GET /` with HTTP 200.
+- Full test suite: **657 passed**, 0 failed.
+

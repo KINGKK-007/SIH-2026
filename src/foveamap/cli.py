@@ -83,6 +83,13 @@ def build_parser() -> argparse.ArgumentParser:
     p_stats.add_argument("--json", default="results/data_stats.json")
     p_stats.add_argument("--table", default="results/tables/data_stats.md")
 
+    p_serve = sub.add_parser("serve", help="launch dashboard server with Socket.IO streaming (T13.2)")
+    _add_common(p_serve)
+    p_serve.add_argument("--host", default="127.0.0.1", help="bind host")
+    p_serve.add_argument("--port", type=int, default=8000, help="bind port")
+    p_serve.add_argument("--mode", choices=["oracle", "cached", "live"], default="oracle")
+    p_serve.add_argument("--model", default=None)
+
     return parser
 
 
@@ -241,6 +248,38 @@ def _cmd_memory(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_serve(args: argparse.Namespace) -> int:
+    """T13.2: launch FastAPI + Socket.IO dashboard backend server."""
+    import uvicorn
+    from foveamap.config import load_config
+    from foveamap.grid.presets import load_preset
+    from foveamap.io.sequence import Sequence as KittiSequence
+    from foveamap.pipeline.runner import PipelineRunner
+    from foveamap.server.app import create_app
+
+    cfgs = load_config(args.config_dir)
+    preset_name = args.preset or cfgs.grid.active_preset
+    preset = load_preset(preset_name, cfgs.grid)
+    seq = KittiSequence(args.data_root, args.sequence)
+
+    if args.mode == "oracle":
+        from foveamap.models.oracle import OracleModel
+        model = OracleModel()
+    elif args.mode == "cached":
+        from foveamap.models.cache import CachedModel
+        model_name = args.model or cfgs.model.name or "lsk3dnet"
+        model = CachedModel(model_name, cfgs.model.cache_dir)
+    else:
+        raise NotImplementedError("live mode requires live network running on GPU machine.")
+
+    runner = PipelineRunner(mode=args.mode, model=model, preset=preset, cfgs=cfgs)
+    app = create_app(runner=runner, seq=seq, cfgs=cfgs, sequence_id=args.sequence)
+
+    print(f"Starting FoveaMap dashboard server on http://{args.host}:{args.port} (mode={args.mode}, seq={args.sequence}, preset={preset_name})")
+    uvicorn.run(app, host=args.host, port=args.port, log_level="info")
+    return 0
+
+
 def _cmd_run(args: argparse.Namespace) -> int:
     raise NotImplementedError("`--mode` runs are implemented in Phases 9 and 13 (docs/PHASES.md).")
 
@@ -251,6 +290,7 @@ COMMANDS = {
     "memory": _cmd_memory,
     "align": _cmd_align,
     "stats": _cmd_stats,
+    "serve": _cmd_serve,
 }
 
 

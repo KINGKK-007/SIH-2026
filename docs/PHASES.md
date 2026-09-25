@@ -298,10 +298,10 @@ graph TD
 **Goal:** a working server and a frontend shell that talk to each other over the frozen protocol, on oracle data.
 **Depends on:** Gate 7 (schema frozen in T7.4). Can run in parallel with Phases 8–12.
 
-- [ ] **T13.1 (M)** `server/protocol.py` (typed message schema per README Section 13.3) and `server/render.py` (server-side ring textures: height-shaded RGBA per ring, selectable layer, WebP/PNG; ring texture orientation convention `row = N_k − 1 − ix`, `col = N_k − 1 − iy`).
-- [ ] **T13.2 (M)** `server/app.py` and `sockets.py`: FastAPI + `python-socketio`; playback loop with `play / pause / step / seek / speed`; modes `oracle | cached | live`.
-- [ ] **T13.3 (M)** `src/dashboard` scaffold: React 18 + Vite + TypeScript, Socket.IO client, global state store, dark theme, single-screen grid layout with placeholder panels; receives frames and shows the ring textures.
-- [ ] **T13.4 (M)** Python end-to-end test: start the server in oracle mode, connect a `python-socketio` client, receive ≥ 10 frames, and validate every message against the schema; a render test that ring textures have the expected shapes.
+- [x] **T13.1 (M)** `server/protocol.py` (typed message schema per README Section 13.3) and `server/render.py` (server-side ring textures: height-shaded RGBA per ring, selectable layer, WebP/PNG; ring texture orientation convention `row = N_k − 1 − ix`, `col = N_k − 1 − iy`).
+- [x] **T13.2 (M)** `server/app.py` and `sockets.py`: FastAPI + `python-socketio`; playback loop with `play / pause / step / seek / speed`; modes `oracle | cached | live`.
+- [x] **T13.3 (M)** `src/dashboard` scaffold: React 18 + Vite + TypeScript, Socket.IO client, global state store, dark theme, single-screen grid layout with placeholder panels; receives frames and shows the ring textures.
+- [x] **T13.4 (M)** Python end-to-end test: start the server in oracle mode, connect a `python-socketio` client, receive ≥ 10 frames, and validate every message against the schema; a render test that ring textures have the expected shapes.
 
 **Gate 13:** the server e2e test passes · `npm run typecheck` and `npm run build` succeed · opening the dashboard in oracle mode shows the live-updating ring textures.
 **Time-box & fallback:** 1.5 days. If the React stack slips, keep the backend and API working and fall back to the static-report path described in Phase 14.
