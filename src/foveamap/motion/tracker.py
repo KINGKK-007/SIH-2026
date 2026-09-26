@@ -30,6 +30,7 @@ class Track:
     hits: int = 1
     missed: int = 0
     speed_mps: float | None = None
+    last_yaw: float | None = None
 
 
 class ClusterTracker:
@@ -40,8 +41,8 @@ class ClusterTracker:
         self.enabled = bool(getattr(hysteresis_cfg, "enabled", True)) if hysteresis_cfg else True
         self.window = int(getattr(hysteresis_cfg, "window", 3)) if hysteresis_cfg else 3
         self.min_hits = int(getattr(hysteresis_cfg, "min_hits", 2)) if hysteresis_cfg else 2
-        self.gate_m = float(getattr(hysteresis_cfg, "gate_m", 2.0)) if hysteresis_cfg else 2.0
-        self.v_min_mps = float(getattr(hysteresis_cfg, "v_min_mps", 0.5)) if hysteresis_cfg else 0.5
+        self.gate_m = float(getattr(hysteresis_cfg, "gate_m", 4.0)) if hysteresis_cfg else 4.0
+        self.v_min_mps = float(getattr(hysteresis_cfg, "v_min_mps", 0.4)) if hysteresis_cfg else 0.4
 
         self.tracks: list[Track] = []
         self._next_id = 1
@@ -85,6 +86,7 @@ class ClusterTracker:
                     cls_name=obj.cls_name,
                     last_center=center_arr,
                     history=hist,
+                    last_yaw=obj.yaw,
                 )
                 self._next_id += 1
                 self.tracks.append(trk)
@@ -146,7 +148,8 @@ class ClusterTracker:
             if i in matched_objects:
                 trk_idx = matched_objects[i]
                 trk = self.tracks[trk_idx]
-                displacement = float(np.linalg.norm(center_arr - comp_centers[trk_idx]))
+                disp_vec = center_arr - comp_centers[trk_idx]
+                displacement = float(np.linalg.norm(disp_vec[:2]))
                 speed_mps = displacement / max(1e-4, dt)
 
                 trk.history.append(obj.moving)
@@ -156,8 +159,23 @@ class ClusterTracker:
                 trk.speed_mps = speed_mps
 
                 moving_hits = sum(1 for m in trk.history if m)
-                hysteresis_moving = (moving_hits >= self.min_hits) or (speed_mps >= self.v_min_mps)
-                final_moving = bool(hysteresis_moving or obj.moving or is_vru)
+                is_consistently_moving = (moving_hits >= self.min_hits)
+                final_moving = bool(obj.moving or is_consistently_moving or is_vru)
+
+                # Align vehicle heading with velocity direction only for moving objects
+                if final_moving:
+                    if speed_mps >= self.v_min_mps:
+                        vel_yaw = float(np.arctan2(disp_vec[1], disp_vec[0]))
+                        trk.last_yaw = vel_yaw
+                        yaw = vel_yaw
+                    elif trk.last_yaw is not None:
+                        yaw = trk.last_yaw
+                    else:
+                        yaw = obj.yaw
+                    out_speed = float(speed_mps)
+                else:
+                    yaw = obj.yaw
+                    out_speed = None
 
                 updated_objects.append(
                     ObjectBox(
@@ -165,12 +183,12 @@ class ClusterTracker:
                         cls_name=obj.cls_name,
                         center=obj.center,
                         size=obj.size,
-                        yaw=obj.yaw,
+                        yaw=yaw,
                         n_points=obj.n_points,
                         mean_conf=obj.mean_conf,
                         moving=final_moving,
                         vote_frac=obj.vote_frac,
-                        speed_mps=float(speed_mps),
+                        speed_mps=out_speed,
                         safety_critical=bool(obj.safety_critical or is_vru or final_moving),
                     )
                 )
@@ -182,6 +200,7 @@ class ClusterTracker:
                     cls_name=obj.cls_name,
                     last_center=center_arr,
                     history=hist,
+                    last_yaw=obj.yaw,
                 )
                 self._next_id += 1
                 self.tracks.append(trk)

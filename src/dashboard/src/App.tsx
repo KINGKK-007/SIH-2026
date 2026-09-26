@@ -96,14 +96,26 @@ export function App() {
   const setPreview = useCallback((next: FrameUpdatePayload | null) => setPreviewFrame(next), []);
   const terrain = useMemo(() => {
     const counts = [0, 0, 0, 0, 0];
-    visibleFrame?.rings.forEach((ring) => ring.cls.forEach((cls, i) => { counts[cls] += ring.count[i] ?? 1; }));
-    const total = counts.reduce((a, b) => a + b, 0) || 1;
+    if (visibleFrame?.rings) {
+      const rings = visibleFrame.rings;
+      const numRings = rings.length;
+      for (let r = 0; r < numRings; r++) {
+        const ring = rings[r];
+        const clsArr = ring.cls;
+        const countArr = ring.count;
+        const len = clsArr.length;
+        for (let i = 0; i < len; i++) {
+          counts[clsArr[i]] += countArr[i] || 1;
+        }
+      }
+    }
+    const total = counts[0] + counts[1] + counts[2] + counts[3] + counts[4] || 1;
     return [
       { label: "Drivable", count: counts[1], color: "drivable" },
       { label: "Other terrain", count: counts[2], color: "other-terrain" },
       { label: "Obstacle", count: counts[3] + counts[4], color: "obstacle" },
       { label: "Unknown", count: counts[0], color: "unknown" },
-    ].map((row) => ({ ...row, pct: row.count / total * 100 }));
+    ].map((row) => ({ ...row, pct: (row.count / total) * 100 }));
   }, [visibleFrame]);
   const isMapView = MAP_VIEWS.includes(view);
 

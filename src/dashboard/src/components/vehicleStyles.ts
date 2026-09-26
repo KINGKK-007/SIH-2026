@@ -2,6 +2,8 @@ import type { ObjectBox } from "../types";
 
 const VEHICLE_CLASSES = new Set(["vehicle", "car", "bicycle", "bicyclist", "bus", "motorcycle", "motorcyclist", "on-rails", "truck", "other-vehicle"]);
 
+// Static  → electric lime-green  (#50FF82)  matches point-cloud cls=3 color
+// Moving  → hot neon magenta     (#FF32A0)  matches point-cloud cls=4 color
 export const VEHICLE_COLORS = {
   static: { line: "#35E1F3", fill: "rgba(53, 225, 243, 0.18)" },
   moving: { line: "#FF7954", fill: "rgba(255, 121, 84, 0.22)" },

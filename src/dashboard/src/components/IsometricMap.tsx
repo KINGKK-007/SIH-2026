@@ -122,6 +122,32 @@ export function IsometricMap(props: Props) {
     return new Float32Array(values);
   }, [frame, layer, mode, colorFor]);
 
+  const groundZ = useMemo(() => {
+    if (!frame?.rings?.length) return -1.73;
+    const r0 = frame.rings.find((r) => r.ring_idx === 0) ?? frame.rings[0];
+    if (!r0?.ground_z?.length) return -1.73;
+    let sum = 0, count = 0;
+    let nearSum = 0, nearCount = 0;
+    const rMax = r0.r_max_mm / 1000;
+    const cellM = r0.cell_mm / 1000;
+    for (let i = 0; i < r0.ix.length; i++) {
+      const gz = r0.ground_z[i];
+      if (gz > -30000 && gz < 5000) {
+        sum += gz;
+        count++;
+        const x = -rMax + r0.ix[i] * cellM;
+        const y = -rMax + r0.iy[i] * cellM;
+        if (Math.abs(x) < 4 && Math.abs(y) < 4) {
+          nearSum += gz;
+          nearCount++;
+        }
+      }
+    }
+    if (nearCount > 0) return (nearSum / nearCount) / 1000;
+    if (count > 0) return (sum / count) / 1000;
+    return -1.73;
+  }, [frame]);
+
   useEffect(() => {
     const canvas = canvasRef.current;
     const gl = canvas?.getContext("webgl2", { alpha: false, antialias: true });
@@ -205,11 +231,11 @@ export function IsometricMap(props: Props) {
         ctx.setLineDash(ring.ring_idx ? [5, 4] : []);
         ctx.beginPath();
         corners.forEach(([x, y], index) => {
-          const p = project(x, y, 0, cx, cy, scale);
+          const p = project(x, y, groundZ, cx, cy, scale);
           if (index) ctx.lineTo(p.x, p.y); else ctx.moveTo(p.x, p.y);
         });
         ctx.closePath(); ctx.stroke(); ctx.setLineDash([]);
-        const label = project(r, -r, 0, cx, cy, scale);
+        const label = project(r, -r, groundZ, cx, cy, scale);
         ctx.fillStyle = "#9cc3d1"; ctx.font = "11px monospace";
         ctx.fillText(`R${ring.ring_idx} · ${ring.cell_mm / 10} cm`, label.x + 6, label.y);
       }
@@ -244,16 +270,37 @@ export function IsometricMap(props: Props) {
           ctx.shadowBlur = 0;
 
           if (obj.moving) {
+            const arrowReach = Math.max(1.4, Math.min(3.5, (obj.speed_mps ?? 6) * 0.15 + 1.2));
             const front = corner(length / 2, 0);
-            const tip = corner(length / 2 + Math.max(.8, length * .3), 0);
+            const tip = corner(length / 2 + arrowReach, 0);
             const tipAngle = Math.atan2(tip.y - front.y, tip.x - front.x);
+            const headLen = 9;
+            ctx.save();
+            ctx.strokeStyle = "#ff7954";
+            ctx.fillStyle = "#ff7954";
+            ctx.lineWidth = 2.5;
             ctx.beginPath();
             ctx.moveTo(front.x, front.y);
             ctx.lineTo(tip.x, tip.y);
-            ctx.moveTo(tip.x - 6 * Math.cos(tipAngle - .55), tip.y - 6 * Math.sin(tipAngle - .55));
-            ctx.lineTo(tip.x, tip.y);
-            ctx.lineTo(tip.x - 6 * Math.cos(tipAngle + .55), tip.y - 6 * Math.sin(tipAngle + .55));
             ctx.stroke();
+
+            // Arrow head
+            ctx.beginPath();
+            ctx.moveTo(tip.x, tip.y);
+            ctx.lineTo(tip.x - headLen * Math.cos(tipAngle - 0.45), tip.y - headLen * Math.sin(tipAngle - 0.45));
+            ctx.lineTo(tip.x - headLen * 0.6 * Math.cos(tipAngle), tip.y - headLen * 0.6 * Math.sin(tipAngle));
+            ctx.lineTo(tip.x - headLen * Math.cos(tipAngle + 0.45), tip.y - headLen * Math.sin(tipAngle + 0.45));
+            ctx.closePath();
+            ctx.fill();
+
+            // Speed label for moving vehicles
+            if (obj.speed_mps != null && obj.speed_mps > 0.5) {
+              const speedText = `${(obj.speed_mps * 3.6).toFixed(0)} km/h`;
+              ctx.font = "bold 10px monospace";
+              ctx.fillStyle = "#ff7954";
+              ctx.fillText(speedText, tip.x + 8, tip.y + 4);
+            }
+            ctx.restore();
           }
         } else {
           ctx.strokeRect(p.x - 7, p.y - 7, 14, 14);
@@ -265,17 +312,89 @@ export function IsometricMap(props: Props) {
       }
     }
     if (props.showVehicle) {
-      const p = project(0, 0, 0, cx, cy, scale);
-      ctx.fillStyle = "#64c6e6";
-      ctx.beginPath(); ctx.moveTo(p.x, p.y - 8); ctx.lineTo(p.x - 6, p.y + 6); ctx.lineTo(p.x + 6, p.y + 6); ctx.closePath(); ctx.fill();
+      // Ego vehicle in SemanticKITTI Velodyne coordinates:
+      // +X is forward (direction of travel of our car), +Y is left, +Z is up.
+      // The road plane beneath the vehicle sits at groundZ (~ -1.72m relative to Velodyne).
+      const gz = groundZ;
+      const s = Math.max(scale, 14 / 2.2);
+
+      const vertex = (along: number, across: number) => {
+        const px = cx + (along - across) * 0.7 * s;
+        const py = cy + (-along - across) * 0.35 * s - gz * 0.9 * scale;
+        return { x: px, y: py };
+      };
+
+      // 1. Vehicle chassis footprint (length: 4.2m, width: 1.9m) centered on the vehicle
+      const fwd = 2.1;
+      const rear = -2.1;
+      const halfW = 0.95;
+
+      const cFrontLeft = vertex(fwd, halfW);
+      const cFrontRight = vertex(fwd, -halfW);
+      const cRearRight = vertex(rear, -halfW);
+      const cRearLeft = vertex(rear, halfW);
+
+      ctx.save();
+      // Chassis footprint on road
+      ctx.beginPath();
+      ctx.moveTo(cFrontLeft.x, cFrontLeft.y);
+      ctx.lineTo(cFrontRight.x, cFrontRight.y);
+      ctx.lineTo(cRearRight.x, cRearRight.y);
+      ctx.lineTo(cRearLeft.x, cRearLeft.y);
+      ctx.closePath();
+      ctx.fillStyle = "rgba(18, 52, 86, 0.75)";
+      ctx.fill();
+      ctx.strokeStyle = "rgba(100, 198, 230, 0.85)";
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+
+      // 2. Directional navigation arrow centered at (0, 0, gz) facing forward (+X)
+      // Tip points along the forward axis (+X, direction of vehicle movement)
+      const arrowLen = 1.8;
+      const arrowWid = 0.95;
+      const arrowNotch = 0.45;
+
+      const pTip = vertex(arrowLen * 0.75, 0);
+      const pLeft = vertex(-arrowLen * 0.5, arrowWid);
+      const pNotch = vertex(-arrowNotch, 0);
+      const pRight = vertex(-arrowLen * 0.5, -arrowWid);
+
+      ctx.beginPath();
+      ctx.moveTo(pTip.x, pTip.y);
+      ctx.lineTo(pLeft.x, pLeft.y);
+      ctx.lineTo(pNotch.x, pNotch.y);
+      ctx.lineTo(pRight.x, pRight.y);
+      ctx.closePath();
+
+      ctx.fillStyle = "#38d9f5";
+      ctx.shadowColor = "#38d9f5";
+      ctx.shadowBlur = 10;
+      ctx.fill();
+      ctx.shadowBlur = 0;
+      ctx.strokeStyle = "#ffffff";
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+
+      // 3. Forward heading trajectory line along +X
+      const pFrontCenter = vertex(fwd, 0);
+      const pAhead = vertex(fwd + 1.8, 0);
+      ctx.beginPath();
+      ctx.moveTo(pFrontCenter.x, pFrontCenter.y);
+      ctx.lineTo(pAhead.x, pAhead.y);
+      ctx.strokeStyle = "rgba(56, 217, 245, 0.8)";
+      ctx.lineWidth = 1.5;
+      ctx.setLineDash([3, 2]);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.restore();
     }
     if (props.probePoint) {
-      const p = project(props.probePoint.x, props.probePoint.y, 0, cx, cy, scale);
+      const p = project(props.probePoint.x, props.probePoint.y, groundZ, cx, cy, scale);
       ctx.strokeStyle = "#ffcc73"; ctx.lineWidth = 2;
       ctx.beginPath(); ctx.arc(p.x, p.y, 9, 0, Math.PI * 2); ctx.stroke();
       ctx.beginPath(); ctx.moveTo(p.x - 13, p.y); ctx.lineTo(p.x + 13, p.y); ctx.moveTo(p.x, p.y - 13); ctx.lineTo(p.x, p.y + 13); ctx.stroke();
     }
-  }, [frame, props.showRings, props.showObjects, props.showVehicle, props.selectedRing, props.selectedObject, props.probePoint, mode, width, height, cx, cy, scale]);
+  }, [frame, props.showRings, props.showObjects, props.showVehicle, props.selectedRing, props.selectedObject, props.probePoint, mode, width, height, cx, cy, scale, groundZ]);
 
   return <div className="iso-stack">
     <canvas ref={canvasRef} width={width} height={height} aria-label="Isometric 2.5D map" onMouseDown={props.onMouseDown} onMouseMove={props.onMouseMove} onMouseUp={props.onMouseUp} onMouseLeave={props.onMouseLeave} onClick={props.onClick} />

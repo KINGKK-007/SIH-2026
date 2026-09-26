@@ -5,13 +5,25 @@ from __future__ import annotations
 import asyncio
 from typing import Any
 
+import orjson
 import socketio
 
 from foveamap.io.sequence import Sequence
 from foveamap.pipeline.runner import PipelineRunner
 from foveamap.server.protocol import serialise_frame_result
 
-sio = socketio.AsyncServer(async_mode="asgi", cors_allowed_origins="*")
+
+class OrjsonWrapper:
+    @staticmethod
+    def dumps(obj: Any, *args: Any, **kwargs: Any) -> str:
+        return orjson.dumps(obj, option=orjson.OPT_SERIALIZE_NUMPY).decode("utf-8")
+
+    @staticmethod
+    def loads(s: str | bytes, *args: Any, **kwargs: Any) -> Any:
+        return orjson.loads(s)
+
+
+sio = socketio.AsyncServer(async_mode="asgi", cors_allowed_origins="*", json=OrjsonWrapper)
 
 
 class PlaybackManager:
@@ -46,24 +58,17 @@ class PlaybackManager:
             "speed": self.speed,
         }
 
-    async def emit_current_frame(self) -> dict[str, Any]:
-        """Process and emit the current frame result."""
-        frame_idx = self.seq.frame_index(self.current_idx)
-
-        # Run the blocking CPU/GPU pipeline in a thread pool so the event loop
-        # stays responsive (otherwise one 500ms process() call = 1 FPS cap).
-        loop = asyncio.get_running_loop()
-        result = await loop.run_in_executor(None, self.runner.process, self.seq, frame_idx)
-
-        # Get timestamp if available
+    def _compute_frame_payload(self, frame_idx: int) -> dict[str, Any]:
+        """Compute pipeline result and serialize to payload dict in worker thread."""
+        result = self.runner.process(self.seq, frame_idx)
         timestamp = 0.0
-        if hasattr(self.seq, "times") and self.current_idx < len(self.seq.times):
-            timestamp = float(self.seq.times[self.current_idx])
+        if hasattr(self.seq, "times") and frame_idx < len(self.seq.times):
+            timestamp = float(self.seq.times[frame_idx])
 
         preset_name = (
             self.cfgs.grid.active_preset if hasattr(self.cfgs, "grid") else "fovea_default"
         )
-        payload = serialise_frame_result(
+        return serialise_frame_result(
             result=result,
             seq=self.seq.seq,
             timestamp=timestamp,
@@ -71,6 +76,11 @@ class PlaybackManager:
             preset_name=preset_name,
         )
 
+    async def emit_current_frame(self) -> dict[str, Any]:
+        """Process and emit the current frame result."""
+        frame_idx = self.seq.frame_index(self.current_idx)
+        loop = asyncio.get_running_loop()
+        payload = await loop.run_in_executor(None, self._compute_frame_payload, frame_idx)
         await sio.emit("frame_update", payload, namespace="/fovea")
         return payload
 
@@ -103,19 +113,36 @@ class PlaybackManager:
         self.speed = max(0.1, min(speed, 10.0))
 
     async def _playback_loop(self) -> None:
+        loop = asyncio.get_running_loop()
+        next_future = None
         while self.is_playing:
             try:
-                t0 = asyncio.get_event_loop().time()
-                await self.emit_current_frame()
-                self.current_idx = (self.current_idx + 1) % max(1, self.total_frames)
+                t0 = loop.time()
+                frame_idx = self.seq.frame_index(self.current_idx)
 
-                # Sleep only for whatever remains of the 10 Hz window after processing.
-                # If processing took longer than the target interval, run next frame immediately.
-                target = 0.1 / self.speed  # seconds per frame (0.1 s = 10 Hz at speed 1×)
-                elapsed = asyncio.get_event_loop().time() - t0
+                # Use prefetched payload if available, else compute
+                if next_future is not None:
+                    payload = await next_future
+                else:
+                    payload = await loop.run_in_executor(None, self._compute_frame_payload, frame_idx)
+
+                # Immediately schedule prefetch of the next frame while transmitting current frame
+                next_idx = (self.current_idx + 1) % max(1, self.total_frames)
+                next_frame_idx = self.seq.frame_index(next_idx)
+                next_future = loop.run_in_executor(None, self._compute_frame_payload, next_frame_idx)
+
+                # Emit current frame to client
+                await sio.emit("frame_update", payload, namespace="/fovea")
+                self.current_idx = next_idx
+
+                target = 0.1 / self.speed
+                elapsed = loop.time() - t0
                 remaining = target - elapsed
                 if remaining > 0:
                     await asyncio.sleep(remaining)
+                else:
+                    # Brief yield so other network I/O and web requests run uninhibited
+                    await asyncio.sleep(0.001)
             except asyncio.CancelledError:
                 break
             except Exception as exc:

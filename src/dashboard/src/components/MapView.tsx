@@ -30,12 +30,14 @@ const TERRAIN_COLORS: Record<number, [number, number, number, number]> = {
   4: [194, 57, 52, 0.90],
 };
 
+// cls=3 STATIC_OBSTACLE → electric lime-green;  cls=4 DYNAMIC → neon magenta
+// These must be immediately distinguishable from terrain and from each other.
 const OBJECT_COLORS: Record<number, [number, number, number, number]> = {
   0: [140, 145, 154, 0.20],
   1: [101, 116, 132, 0.18],
   2: [101, 116, 132, 0.20],
-  3: [230, 112, 38, 0.95],
-  4: [16, 164, 203, 0.98],
+  3: [80, 255, 130, 0.97],   // STATIC_OBSTACLE  — bright electric lime-green
+  4: [255, 50, 160, 0.98],   // DYNAMIC (moving)  — hot neon magenta
 };
 
 // Per-ring boundaries remain legible over the dark map.
@@ -89,30 +91,63 @@ function cellColor(ring: FrameUpdatePayload["rings"][number], i: number, layer: 
   return [45, 201, 154, 0.2 + (ring.conf[i] || 0) / 255 * 0.8];
 }
 
+interface TextureCacheEntry {
+  canvas: HTMLCanvasElement;
+  ctx: CanvasRenderingContext2D;
+  image: ImageData;
+  u32: Uint32Array;
+  side: number;
+}
+const texturePool = new Map<number, TextureCacheEntry>();
+
+function getPooledTexture(ringIdx: number, side: number): TextureCacheEntry | null {
+  let entry = texturePool.get(ringIdx);
+  if (!entry || entry.side !== side) {
+    const canvas = document.createElement("canvas");
+    canvas.width = side;
+    canvas.height = side;
+    const ctx = canvas.getContext("2d", { willReadFrequently: false });
+    if (!ctx) return null;
+    const image = ctx.createImageData(side, side);
+    const u32 = new Uint32Array(image.data.buffer);
+    entry = { canvas, ctx, image, u32, side };
+    texturePool.set(ringIdx, entry);
+  }
+  return entry;
+}
+
 function buildTextures(frame: FrameUpdatePayload | null, layer: ActiveLayer, mode: AnalysisMode): Map<number, HTMLCanvasElement> {
   const textures = new Map<number, HTMLCanvasElement>();
   if (!frame) return textures;
   for (const ring of frame.rings) {
     const side = ring.side;
-    const canvas = document.createElement("canvas");
-    canvas.width = side;
-    canvas.height = side;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) continue;
-    const image = ctx.createImageData(side, side);
-    for (let i = 0; i < ring.ix.length; i++) {
+    const entry = getPooledTexture(ring.ring_idx, side);
+    if (!entry) continue;
+    const { canvas, ctx, image, u32 } = entry;
+    u32.fill(0);
+
+    const nCells = ring.ix.length;
+    for (let i = 0; i < nCells; i++) {
       const color = cellColor(ring, i, layer, mode);
       if (!color) continue;
-      const pixel = ((side - 1 - ring.ix[i]) * side + side - 1 - ring.iy[i]) * 4;
-      image.data[pixel] = color[0];
-      image.data[pixel + 1] = color[1];
-      image.data[pixel + 2] = color[2];
-      image.data[pixel + 3] = Math.round(color[3] * 255);
+      const pixelIdx = (side - 1 - ring.ix[i]) * side + (side - 1 - ring.iy[i]);
+      const a = Math.round(color[3] * 255);
+      u32[pixelIdx] = (a << 24) | (color[2] << 16) | (color[1] << 8) | color[0];
     }
     ctx.putImageData(image, 0, 0);
     textures.set(ring.ring_idx, canvas);
   }
   return textures;
+}
+
+function findOccupiedCell(ring: FrameUpdatePayload["rings"][number], targetIx: number, targetIy: number): number {
+  const ixArr = ring.ix;
+  const iyArr = ring.iy;
+  const len = ixArr.length;
+  for (let i = 0; i < len; i++) {
+    if (ixArr[i] === targetIx && iyArr[i] === targetIy) return i;
+  }
+  return -1;
 }
 
 export const MapView: React.FC<MapViewProps> = ({
@@ -138,9 +173,8 @@ export const MapView: React.FC<MapViewProps> = ({
   const [layersOpen, setLayersOpen] = useState(false);
   const [visibility, setVisibility] = useState({ rings: true, objects: true, vehicle: true });
   const [perspective, setPerspective] = useState<"top" | "iso">("top");
-  const textures = useMemo(() => buildTextures(frame, activeLayer, analysisMode), [frame, activeLayer, analysisMode]);
+  const textures = useMemo(() => perspective === "top" ? buildTextures(frame, activeLayer, analysisMode) : new Map(), [frame, activeLayer, analysisMode, perspective]);
   const [size, setSize] = useState({ width: 640, height: 520 });
-  const hoverIndex = useMemo(() => new Map((frame?.rings ?? []).map((ring) => [ring.ring_idx, new Map(ring.ix.map((ix, i) => [ix * ring.side + ring.iy[i], i]))])), [frame]);
   const objectCounts = useMemo(() => {
     const extent = frame?.rings.length ? Math.max(...frame.rings.map((ring) => ring.r_max_mm)) / 1000 : 0;
     const objects = (frame?.objects ?? []).filter((obj) => isDrawableObject(obj)
@@ -284,7 +318,7 @@ export const MapView: React.FC<MapViewProps> = ({
         }
         ctx.restore();
 
-        if (!vehicle) {
+        if (!vehicle || (obj.moving && obj.speed_mps != null && obj.speed_mps > 0.5)) {
           const speedText = obj.speed_mps == null ? "" : ` · ${(obj.speed_mps * 3.6).toFixed(0)} km/h`;
           const labelText = `${obj.cls_name}${speedText}${nearby ? " · NEARBY" : ""}`;
           ctx.font = "bold 11px monospace";
@@ -307,15 +341,26 @@ export const MapView: React.FC<MapViewProps> = ({
       }
     }
 
-    // Ego-vehicle (blue box like SemanticKITTI)
+    // Ego-vehicle (blue box like SemanticKITTI with forward arrow)
     if (visibility.vehicle) {
-      const vehW = Math.max(6, 2000 * scale);
-      const vehL = Math.max(9, 4000 * scale);
+      const vehW = Math.max(8, 2000 * scale);
+      const vehL = Math.max(12, 4000 * scale);
       ctx.fillStyle = "#1a5276";
       ctx.fillRect(centerX - vehW / 2, centerY - vehL / 2, vehW, vehL);
       ctx.strokeStyle = "#fff";
       ctx.lineWidth = 1.5;
       ctx.strokeRect(centerX - vehW / 2, centerY - vehL / 2, vehW, vehL);
+
+      // Directional arrow pointing forward (+X is up on 2D screen)
+      const arrowH = Math.min(vehL * 0.45, 12);
+      const arrowW = Math.min(vehW * 0.55, 8);
+      ctx.fillStyle = "#38d9f5";
+      ctx.beginPath();
+      ctx.moveTo(centerX, centerY - vehL / 2 + 2);
+      ctx.lineTo(centerX - arrowW / 2, centerY - vehL / 2 + 2 + arrowH);
+      ctx.lineTo(centerX + arrowW / 2, centerY - vehL / 2 + 2 + arrowH);
+      ctx.closePath();
+      ctx.fill();
     }
 
     if (probePoint) {
@@ -385,7 +430,7 @@ export const MapView: React.FC<MapViewProps> = ({
           ringIndex = r.ring_idx;
           const ix = Math.floor((xMm + r.r_max_mm) / r.cell_mm);
           const iy = Math.floor((yMm + r.r_max_mm) / r.cell_mm);
-          const cell = hoverIndex.get(r.ring_idx)?.get(ix * r.side + iy) ?? -1;
+          const cell = findOccupiedCell(r, ix, iy);
           occupied = cell >= 0;
           if (cell >= 0) {
             const z = r.ground_z[cell] !== -32768 ? r.ground_z[cell] : r.top_z[cell];

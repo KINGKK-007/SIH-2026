@@ -168,6 +168,27 @@ class PipelineRunner:
         from foveamap.io.poses import relative_transform
         from foveamap.motion.pipeline import estimate_motion
 
+        # Compute ego-motion transform from previous frame for continuous tracking
+        T_prev = None
+        dt = 0.1
+        if hasattr(self, "_last_idx") and self._last_idx is not None and getattr(self, "_last_seq", None) == seq.seq:
+            if idx == self._last_idx + 1:
+                try:
+                    T_prev = relative_transform(seq.calib, seq.poses, idx, self._last_idx)
+                    if hasattr(seq, "times") and idx < len(seq.times) and self._last_idx < len(seq.times):
+                        t_delta = float(seq.times[idx] - seq.times[self._last_idx])
+                        if t_delta > 0.001:
+                            dt = t_delta
+                except Exception:
+                    T_prev = None
+            else:
+                self.tracker.reset()
+        else:
+            self.tracker.reset()
+
+        self._last_idx = idx
+        self._last_seq = seq.seq
+
         cur_classified = ClassifiedScan(
             scan=scan,
             super_cls=super_cls,
@@ -186,7 +207,7 @@ class PipelineRunner:
                 use_oracle=True,
                 device=self.device,
             )
-            objects = classified.objects
+            objects = self.tracker.update(classified.objects, T_prev, dt=dt)
             super_cls = classified.super_cls
             moving = classified.moving
         elif self.motion_cfg is not None and getattr(self.motion_cfg, "enabled", True):
@@ -213,8 +234,7 @@ class PipelineRunner:
                 use_oracle=False,
                 device=self.device,
             )
-            T_prev = transforms[0] if transforms else None
-            objects = self.tracker.update(classified.objects, T_prev)
+            objects = self.tracker.update(classified.objects, T_prev, dt=dt)
             super_cls = classified.super_cls
             moving = classified.moving
         else:
