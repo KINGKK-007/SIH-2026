@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, type MouseEventHandler } from "react";
 import type { ActiveLayer, AnalysisMode, FrameUpdatePayload, RingSparse } from "../types";
+import { isDrawableObject, isPersonObject, isVehicleObject, VEHICLE_COLORS } from "./vehicleStyles";
 
 type Paint = [number, number, number, number] | null;
 
@@ -215,15 +216,52 @@ export function IsometricMap(props: Props) {
     }
     if (props.showObjects && mode === "objects" && frame) {
       for (const obj of frame.objects) {
-        if (obj.size[0] > 15 || obj.size[1] > 15) continue;
+        if (!isDrawableObject(obj) || isPersonObject(obj)) continue;
         const p = project(obj.center[0], obj.center[1], obj.center[2], cx, cy, scale);
-        ctx.strokeStyle = props.selectedObject === obj.id ? "#f6bf66" : obj.moving ? "#f05a65" : "#58bdde";
-        ctx.lineWidth = 2;
-        ctx.strokeRect(p.x - 7, p.y - 7, 14, 14);
-        ctx.font = "10px monospace";
-        ctx.fillStyle = ctx.strokeStyle;
-        const speed = obj.speed_mps == null ? "" : ` ${(obj.speed_mps * 3.6).toFixed(0)} km/h`;
-        ctx.fillText(`${obj.cls_name}${speed}`, p.x + 11, p.y - 9);
+        const vehicle = isVehicleObject(obj);
+        const palette = VEHICLE_COLORS[obj.moving ? "moving" : "static"];
+        ctx.strokeStyle = vehicle ? palette.line : props.selectedObject === obj.id ? "#f6bf66" : obj.moving ? "#f05a65" : "#58bdde";
+        ctx.lineWidth = props.selectedObject === obj.id ? 3 : 2;
+        if (vehicle) {
+          const [x, y, z] = obj.center;
+          const [length, width] = obj.size;
+          const forward = [Math.cos(obj.yaw), Math.sin(obj.yaw)];
+          const side = [-Math.sin(obj.yaw), Math.cos(obj.yaw)];
+          const corner = (along: number, across: number) => project(
+            x + forward[0] * along + side[0] * across,
+            y + forward[1] * along + side[1] * across,
+            z, cx, cy, scale,
+          );
+          const corners = [corner(length / 2, width / 2), corner(length / 2, -width / 2),
+            corner(-length / 2, -width / 2), corner(-length / 2, width / 2)];
+          ctx.beginPath();
+          corners.forEach((point, index) => index ? ctx.lineTo(point.x, point.y) : ctx.moveTo(point.x, point.y));
+          ctx.closePath();
+          ctx.fillStyle = palette.fill;
+          ctx.fill();
+          if (props.selectedObject === obj.id) { ctx.shadowColor = palette.line; ctx.shadowBlur = 12; }
+          ctx.stroke();
+          ctx.shadowBlur = 0;
+
+          if (obj.moving) {
+            const front = corner(length / 2, 0);
+            const tip = corner(length / 2 + Math.max(.8, length * .3), 0);
+            const tipAngle = Math.atan2(tip.y - front.y, tip.x - front.x);
+            ctx.beginPath();
+            ctx.moveTo(front.x, front.y);
+            ctx.lineTo(tip.x, tip.y);
+            ctx.moveTo(tip.x - 6 * Math.cos(tipAngle - .55), tip.y - 6 * Math.sin(tipAngle - .55));
+            ctx.lineTo(tip.x, tip.y);
+            ctx.lineTo(tip.x - 6 * Math.cos(tipAngle + .55), tip.y - 6 * Math.sin(tipAngle + .55));
+            ctx.stroke();
+          }
+        } else {
+          ctx.strokeRect(p.x - 7, p.y - 7, 14, 14);
+          ctx.font = "10px monospace";
+          ctx.fillStyle = ctx.strokeStyle;
+          const speed = obj.speed_mps == null ? "" : ` ${(obj.speed_mps * 3.6).toFixed(0)} km/h`;
+          ctx.fillText(`${obj.cls_name}${speed}`, p.x + 11, p.y - 9);
+        }
       }
     }
     if (props.showVehicle) {

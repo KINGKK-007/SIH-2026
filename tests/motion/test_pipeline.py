@@ -20,12 +20,16 @@ def test_estimate_motion_oracle_mode() -> None:
     n_pts = 100
     xyz = np.random.uniform(-10, 10, size=(n_pts, 3)).astype(np.float32)
 
-    # 30 points are a moving car (raw sem 252, instance 5)
+    # Moving and parked cars have instances; a building instance should stay excluded.
     sem_ids = np.full(n_pts, 40, dtype=np.uint32)  # road
     inst_ids = np.zeros(n_pts, dtype=np.uint32)
 
     sem_ids[:30] = 252  # moving-car
     inst_ids[:30] = 5
+    sem_ids[30:60] = 10  # static car
+    inst_ids[30:60] = 6
+    sem_ids[60:80] = 50  # building
+    inst_ids[60:80] = 7
 
     raw_labels = (inst_ids << 16) | sem_ids
 
@@ -61,12 +65,17 @@ def test_estimate_motion_oracle_mode() -> None:
     assert np.all(out.moving[30:] == False)  # noqa: E712
 
     # Object was created
-    assert len(out.objects) == 1
-    obj = out.objects[0]
+    assert len(out.objects) == 2
+    obj = next(obj for obj in out.objects if obj.id == 5)
     assert obj.id == 5
     assert obj.cls_name == "moving-car"
     assert obj.moving is True
     assert obj.n_points == 30
+    parked = next(obj for obj in out.objects if obj.id == 6)
+    assert parked.cls_name == "car"
+    assert parked.moving is False
+    assert parked.n_points == 30
+    assert all(obj.id != 7 for obj in out.objects)
 
 
 def test_pipeline_runner_with_motion(synthetic_root: Path) -> None:

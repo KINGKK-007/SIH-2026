@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { IsometricMap } from "./IsometricMap";
+import { isDrawableObject, isPersonObject, isVehicleObject, VEHICLE_COLORS } from "./vehicleStyles";
 import type { ActiveLayer, AnalysisMode, FrameUpdatePayload } from "../types";
 
 interface MapViewProps {
@@ -140,6 +141,15 @@ export const MapView: React.FC<MapViewProps> = ({
   const textures = useMemo(() => buildTextures(frame, activeLayer, analysisMode), [frame, activeLayer, analysisMode]);
   const [size, setSize] = useState({ width: 640, height: 520 });
   const hoverIndex = useMemo(() => new Map((frame?.rings ?? []).map((ring) => [ring.ring_idx, new Map(ring.ix.map((ix, i) => [ix * ring.side + ring.iy[i], i]))])), [frame]);
+  const objectCounts = useMemo(() => {
+    const extent = frame?.rings.length ? Math.max(...frame.rings.map((ring) => ring.r_max_mm)) / 1000 : 0;
+    const objects = (frame?.objects ?? []).filter((obj) => isDrawableObject(obj)
+      && Math.abs(obj.center[0]) <= extent && Math.abs(obj.center[1]) <= extent);
+    return {
+      static: objects.filter((obj) => isVehicleObject(obj) && !obj.moving).length,
+      moving: objects.filter((obj) => isVehicleObject(obj) && obj.moving).length,
+    };
+  }, [frame]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -231,15 +241,12 @@ export const MapView: React.FC<MapViewProps> = ({
     }
 
     // Boxes use measured motion fields only; proximity is not a collision prediction.
-    // Skip degenerate boxes from clustering artifacts (> 15m = merged cluster, not a single vehicle)
-    const MAX_BOX_M = 15.0;
+    // Skip degenerate boxes from clustering artifacts (> 15m = merged cluster).
     if (visibility.objects && analysisMode === "objects" && frame.objects && frame.objects.length > 0) {
       for (const obj of frame.objects) {
+        if (isPersonObject(obj) || !isDrawableObject(obj)) continue;
         const [ox, oy] = obj.center;
         const [l, w] = obj.size;
-
-        // Sanity-check: skip obviously degenerate clusters
-        if (l > MAX_BOX_M || w > MAX_BOX_M) continue;
 
         const screenX = centerX - (oy * 1000) * scale;
         const screenY = centerY - (ox * 1000) * scale;
@@ -252,49 +259,51 @@ export const MapView: React.FC<MapViewProps> = ({
 
         const rangeM = Math.hypot(ox, oy);
         const nearby = rangeM < 8 && (obj.moving || obj.safety_critical);
+        const vehicle = isVehicleObject(obj);
+        const palette = VEHICLE_COLORS[obj.moving ? "moving" : "static"];
 
-        if (obj.moving) {
-          ctx.fillStyle = "rgba(231, 70, 79, 0.18)";
-        } else {
-          ctx.fillStyle = "rgba(66, 170, 216, 0.12)";
-        }
+        ctx.fillStyle = vehicle ? palette.fill : obj.moving ? "rgba(231, 70, 79, 0.18)" : "rgba(66, 170, 216, 0.12)";
         ctx.fillRect(-wPx / 2, -lPx / 2, wPx, lPx);
 
-        ctx.strokeStyle = selectedObject === obj.id ? "#ffce7c" : nearby ? "#ff696d" : obj.moving ? "#f3a35f" : "#60c8e7";
-        ctx.lineWidth = selectedObject === obj.id ? 3 : 2;
+        ctx.strokeStyle = vehicle ? palette.line : selectedObject === obj.id ? "#ffce7c" : nearby ? "#ff696d" : obj.moving ? "#f3a35f" : "#60c8e7";
+        ctx.lineWidth = selectedObject === obj.id ? 3.5 : vehicle ? 2.5 : 2;
+        if (vehicle && selectedObject === obj.id) { ctx.shadowColor = palette.line; ctx.shadowBlur = 13; }
         ctx.strokeRect(-wPx / 2, -lPx / 2, wPx, lPx);
+        ctx.shadowBlur = 0;
 
-        // Heading from the tracked box yaw; speed is shown only when supplied.
-        ctx.strokeStyle = obj.moving ? "#ff696d" : "#60c8e7";
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.moveTo(0, -lPx / 2);
-        ctx.lineTo(0, -lPx / 2 - 12);
-        ctx.moveTo(-4, -lPx / 2 - 8);
-        ctx.lineTo(0, -lPx / 2 - 12);
-        ctx.lineTo(4, -lPx / 2 - 8);
-        ctx.stroke();
+        if (!vehicle || obj.moving) {
+          ctx.strokeStyle = vehicle ? palette.line : obj.moving ? "#ff696d" : "#60c8e7";
+          ctx.lineWidth = vehicle ? 2.5 : 2;
+          ctx.beginPath();
+          ctx.moveTo(0, -lPx / 2);
+          ctx.lineTo(0, -lPx / 2 - 12);
+          ctx.moveTo(-4, -lPx / 2 - 8);
+          ctx.lineTo(0, -lPx / 2 - 12);
+          ctx.lineTo(4, -lPx / 2 - 8);
+          ctx.stroke();
+        }
         ctx.restore();
 
-        // Label pill
-        const speedText = obj.speed_mps == null ? "" : ` · ${(obj.speed_mps * 3.6).toFixed(0)} km/h`;
-        const labelText = `${obj.cls_name}${speedText}${nearby ? " · NEARBY" : ""}`;
-        ctx.font = "bold 11px monospace";
-        ctx.textAlign = "center";
-        const tw = ctx.measureText(labelText).width;
-        const lx = screenX - tw / 2 - 4;
-        const ly = screenY - lPx / 2 - 19;
-        ctx.fillStyle = nearby ? "#96394a" : obj.moving ? "#704936" : "#16465e";
-        ctx.beginPath();
-        if (typeof ctx.roundRect === "function") {
-          ctx.roundRect(lx, ly, tw + 8, 17, 3);
-        } else {
-          ctx.rect(lx, ly, tw + 8, 17);
+        if (!vehicle) {
+          const speedText = obj.speed_mps == null ? "" : ` · ${(obj.speed_mps * 3.6).toFixed(0)} km/h`;
+          const labelText = `${obj.cls_name}${speedText}${nearby ? " · NEARBY" : ""}`;
+          ctx.font = "bold 11px monospace";
+          ctx.textAlign = "center";
+          const tw = ctx.measureText(labelText).width;
+          const lx = screenX - tw / 2 - 4;
+          const ly = screenY - lPx / 2 - 19;
+          ctx.fillStyle = nearby ? "#96394a" : obj.moving ? "#704936" : "#16465e";
+          ctx.beginPath();
+          if (typeof ctx.roundRect === "function") {
+            ctx.roundRect(lx, ly, tw + 8, 17, 3);
+          } else {
+            ctx.rect(lx, ly, tw + 8, 17);
+          }
+          ctx.fill();
+          ctx.fillStyle = "#ffffff";
+          ctx.fillText(labelText, screenX, ly + 12);
+          ctx.textAlign = "left";
         }
-        ctx.fill();
-        ctx.fillStyle = "#ffffff";
-        ctx.fillText(labelText, screenX, ly + 12);
-        ctx.textAlign = "left";
       }
     }
 
@@ -413,7 +422,7 @@ export const MapView: React.FC<MapViewProps> = ({
     if (analysisMode === "objects" && visibility.objects) {
       const nearest = frame.objects
         .map((object) => ({ object, distance: Math.hypot(object.center[0] - xM, object.center[1] - yM) }))
-        .filter(({ object }) => object.size[0] <= 15 && object.size[1] <= 15)
+        .filter(({ object }) => isDrawableObject(object) && !isPersonObject(object))
         .sort((a, b) => a.distance - b.distance)[0];
       if (nearest && nearest.distance <= Math.max(nearest.object.size[0], nearest.object.size[1], 2)) {
         onObjectSelect(nearest.object.id === selectedObject ? null : nearest.object.id);
@@ -461,6 +470,11 @@ export const MapView: React.FC<MapViewProps> = ({
           onClick={handleMapClick}
           onMouseLeave={() => { handleMouseUp(); setHoverInfo(null); }}
         /> : <IsometricMap frame={frame} layer={activeLayer} mode={analysisMode} width={size.width} height={size.height} zoom={zoom} offset={offset} showRings={visibility.rings} showObjects={visibility.objects} showVehicle={visibility.vehicle} selectedRing={selectedRing} selectedObject={selectedObject} probePoint={probePoint} onZoom={zoomByWheel} onUnavailable={fallbackToTop} colorFor={cellColor} onMouseDown={handleMouseDown} onMouseMove={handleMouseMove} onMouseUp={handleMouseUp} onMouseLeave={() => { handleMouseUp(); setHoverInfo(null); }} onClick={handleMapClick} />}
+        {analysisMode === "objects" && <div className="vehicle-count-overlay" aria-label={`Current grid: ${objectCounts.static} static vehicles, ${objectCounts.moving} moving vehicles`}>
+          <span className="vehicle-count-heading">VEHICLES IN CURRENT GRID</span>
+          <div className="vehicle-count-row static"><span className="vehicle-count-swatch" /><span>Static vehicles</span><strong>{objectCounts.static}</strong></div>
+          <div className="vehicle-count-row moving"><span className="vehicle-count-swatch" /><span>Moving vehicles</span><strong>{objectCounts.moving}</strong></div>
+        </div>}
       </div>
 
       <div className="map-footer-controls">

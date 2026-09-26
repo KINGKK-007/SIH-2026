@@ -22,6 +22,10 @@ VULNERABLE_ROAD_USERS = {
     "moving-motorcyclist",
 }
 
+VEHICLE_CLASSES = {
+    "car", "bicycle", "bus", "motorcycle", "on-rails", "truck", "other-vehicle"
+}
+
 
 def estimate_motion(
     cur: ClassifiedScan,
@@ -92,9 +96,10 @@ def estimate_motion(
             is_safety = bool(info.safety_critical if info else False)
             is_inst_moving = (int(inst) in moving_inst_ids)
             is_vru = cls_name in VULNERABLE_ROAD_USERS
+            is_vehicle = cls_name in VEHICLE_CLASSES
 
-            # Skip static non-safety instances — oriented_box is the bottleneck (~2ms each)
-            if not is_inst_moving and not is_safety and not is_vru:
+            # Keep parked vehicles for map boxes/counts; skip unrelated static instances.
+            if not is_inst_moving and not is_safety and not is_vru and not is_vehicle:
                 continue
 
             pts = cur_xyz[inst_mask]

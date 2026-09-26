@@ -1,5 +1,6 @@
 import { ChevronDown } from "lucide-react";
 import type { ActiveLayer, AnalysisMode, FrameUpdatePayload } from "../types";
+import { isDrawableObject, isPersonObject } from "./vehicleStyles";
 
 interface MapInspectorProps {
   frame: FrameUpdatePayload | null;
@@ -18,7 +19,7 @@ const zoneNames = ["Near field", "Intermediate", "Reduced detail", "Far field"];
 
 export function MapInspector({ frame, layer, mode, selectedRing, selectedObject, terrain, onLayerChange, onRingSelect, onObjectSelect }: MapInspectorProps) {
   const rings = [...(frame?.rings ?? [])].sort((a, b) => a.ring_idx - b.ring_idx);
-  const objects = (frame?.objects ?? []).filter((object) => object.size[0] <= 15 && object.size[1] <= 15);
+  const objects = (frame?.objects ?? []).filter((object) => isDrawableObject(object) && !isPersonObject(object));
   const selected = objects.find((object) => object.id === selectedObject);
 
   return <aside className="map-inspector" aria-label="Map inspector">
