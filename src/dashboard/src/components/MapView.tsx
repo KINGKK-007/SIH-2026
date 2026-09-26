@@ -4,9 +4,7 @@ import type { ActiveLayer, AnalysisMode, FrameUpdatePayload } from "../types";
 interface MapViewProps {
   frame: FrameUpdatePayload | null;
   activeLayer: ActiveLayer;
-  onLayerChange: (layer: ActiveLayer) => void;
   analysisMode: AnalysisMode;
-  onAnalysisModeChange: (mode: AnalysisMode) => void;
   selectedRing: number | null;
   onRingSelect: (ring: number | null) => void;
   selectedObject: number | null;
@@ -15,13 +13,13 @@ interface MapViewProps {
 
 // Bit flags matching Python grid/layers.py
 const FLAG_HAS_GROUND   = 0x01;
-const FLAG_KERB         = 0x08;
-const FLAG_LOW_CLEAR    = 0x10;
-const FLAG_TRAVERSABLE  = 0x20;
+const FLAG_KERB         = 0x10;
+const FLAG_LOW_CLEAR    = 0x40;
+const FLAG_TRAVERSABLE  = 0x08;
 
 const TERRAIN_COLORS: Record<number, [number, number, number, number]> = {
-  0: [120, 126, 136, 0.35],
-  1: [34, 177, 76, 0.94],
+  0: [100, 113, 128, 0.65],
+  1: [8, 145, 160, 0.94],
   2: [210, 142, 35, 0.92],
   3: [194, 57, 52, 0.90],
   4: [194, 57, 52, 0.90],
@@ -37,7 +35,7 @@ const OBJECT_COLORS: Record<number, [number, number, number, number]> = {
 
 // Per-ring boundary colors (darker for light bg)
 const RING_COLORS = [
-  "rgba(40, 160, 80, 0.9)",   // ring 0 — green
+  "rgba(8, 145, 160, 0.9)",   // ring 0 — teal
   "rgba(30, 100, 200, 0.8)",  // ring 1 — blue
   "rgba(200, 130, 0, 0.75)",  // ring 2 — amber
   "rgba(190, 50, 50, 0.70)",  // ring 3 — red
@@ -55,7 +53,6 @@ function jetColor(t: number): [number, number, number] {
 export const MapView: React.FC<MapViewProps> = ({
   frame,
   activeLayer,
-  onLayerChange,
   analysisMode,
   selectedRing,
   onRingSelect,
@@ -83,8 +80,8 @@ export const MapView: React.FC<MapViewProps> = ({
     const centerX = width / 2 + offset.x;
     const centerY = height / 2 + offset.y;
 
-    // Dark perception-console background
-    ctx.fillStyle = "#080c11";
+    // White plotting surface; projection and backend coordinates are unchanged.
+    ctx.fillStyle = "#ffffff";
     ctx.fillRect(0, 0, width, height);
 
     const maxExtentMm = frame?.rings?.length
@@ -97,30 +94,30 @@ export const MapView: React.FC<MapViewProps> = ({
     // Light grid circles every 20m
     for (let r = 20000; r <= maxExtentMm; r += 20000) {
       const px = r * scale;
-      ctx.strokeStyle = "rgba(150,190,220,0.10)";
+      ctx.strokeStyle = "rgba(60,80,100,0.10)";
       ctx.lineWidth = 1;
       ctx.beginPath();
       ctx.arc(centerX, centerY, px, 0, 2 * Math.PI);
       ctx.stroke();
-      ctx.fillStyle = "rgba(180,200,215,0.42)";
+      ctx.fillStyle = "#718096";
       ctx.font = "10px monospace";
       ctx.fillText(`${r / 1000}m`, centerX + 4, centerY - px + 12);
     }
 
     // Axis lines
-    ctx.strokeStyle = "rgba(150,190,220,0.13)";
+    ctx.strokeStyle = "rgba(60,80,100,0.15)";
     ctx.lineWidth = 1;
     ctx.beginPath();
     ctx.moveTo(centerX, 0); ctx.lineTo(centerX, height);
     ctx.moveTo(0, centerY); ctx.lineTo(width, centerY);
     ctx.stroke();
 
-    ctx.fillStyle = "rgba(180,200,215,0.48)";
+    ctx.fillStyle = "#64748b";
     ctx.font = "11px monospace";
     ctx.fillText("↑ FWD", centerX + 5, Math.max(15, centerY - maxExtentMm * scale - 4));
 
     if (!frame || !frame.rings || frame.rings.length === 0) {
-      ctx.fillStyle = "rgba(210,225,235,0.55)";
+      ctx.fillStyle = "#64748b";
       ctx.font = "14px sans-serif";
       ctx.textAlign = "center";
       ctx.fillText("Waiting for frame data...", width / 2, height / 2 + 40);
@@ -169,6 +166,7 @@ export const MapView: React.FC<MapViewProps> = ({
           const gz = ring.ground_z[i];
           const tz = ring.top_z[i];
           const z = tz !== -32768 ? tz : gz;
+          if (z === -32768) continue;
           // -2.5m → 0 → +4m mapped to jet 0→1
           const t = Math.max(0, Math.min(1, (z / 1000 + 2.5) / 6.5));
           [r, g, b] = jetColor(t);
@@ -176,7 +174,7 @@ export const MapView: React.FC<MapViewProps> = ({
         } else if (activeLayer === "traversability") {
           const isTrav = (flags & FLAG_TRAVERSABLE) !== 0;
           const hasGnd = (flags & FLAG_HAS_GROUND) !== 0;
-          if (!hasGnd)            { [r, g, b, a] = [180, 180, 185, 0.3]; }
+          if (!hasGnd)            { [r, g, b, a] = [120, 130, 145, 0.5]; }
           else if (isTrav)        { [r, g, b, a] = [46, 160, 80,  0.90]; }
           else                    { [r, g, b, a] = [200, 50, 50,  0.90]; }
         } else if (activeLayer === "moving") {
@@ -206,7 +204,7 @@ export const MapView: React.FC<MapViewProps> = ({
         const lw = ctx.measureText(resLabel).width;
         const bx = centerX - boundaryPx + 5;
         const by = centerY - boundaryPx + 5;
-        ctx.fillStyle = "rgba(8,12,17,0.88)";
+        ctx.fillStyle = "rgba(255,255,255,0.94)";
         ctx.fillRect(bx, by, lw + 8, 19);
         ctx.fillStyle = borderColor.replace(/[\d.]+\)$/, "1)");
         ctx.fillText(resLabel, bx + 4, by + 14);
@@ -386,41 +384,8 @@ export const MapView: React.FC<MapViewProps> = ({
     return () => canvas.removeEventListener("wheel", onWheel);
   }, []);
 
-  const MAX_BOX_DISPLAY_M = 15.0;
-  const validObjects = frame?.objects?.filter((o) => {
-    const [l, w] = o.size ?? [0, 0];
-    return l <= MAX_BOX_DISPLAY_M && w <= MAX_BOX_DISPLAY_M;
-  }) ?? [];
-  const filteredCount = (frame?.objects?.length ?? 0) - validObjects.length;
-  const movingCount = validObjects.filter((o) => o.moving).length;
-  const staticCount = validObjects.length - movingCount;
-
   return (
     <div className="map-view-wrapper">
-      <div className="map-toolbar">
-        <div className="analysis-controls">
-          <span className="viewer-layer-label">MAP MODE</span>
-          <div className="overlay-selector" aria-label="Supporting overlay">
-            {(["class", "height", "confidence", "traversability"] as ActiveLayer[]).map((lyr) => (
-              <button
-                key={lyr}
-                className={`overlay-btn ${activeLayer === lyr ? "overlay-active" : ""}`}
-                onClick={() => onLayerChange(lyr)}
-              >
-                {lyr === "class" ? "Semantic" : lyr === "height" ? "Elevation"
-                 : lyr === "traversability" ? "Traversability" : "Confidence"}
-              </button>
-            ))}
-          </div>
-        </div>
-        <div className="zoom-controls">
-          <button className="ctrl-btn" onClick={() => setZoom((z) => Math.min(8.0, z * 1.25))}>+</button>
-          <button className="ctrl-btn" onClick={() => setZoom((z) => Math.max(0.3, z / 1.25))}>−</button>
-          <button className="ctrl-btn reset-btn" onClick={() => { setZoom(2.0); setOffset({ x: 0, y: 0 }); }}>Reset</button>
-          <button className={`ctrl-btn reset-btn ${layersOpen ? "control-active" : ""}`} onClick={() => setLayersOpen((value) => !value)}>Layers</button>
-        </div>
-      </div>
-
       {layersOpen && <div className="layers-popover">
         <strong>VISIBLE OVERLAYS</strong>
         {(["rings", "objects", "vehicle"] as const).map((item) => <label key={item}>
@@ -442,52 +407,14 @@ export const MapView: React.FC<MapViewProps> = ({
         {hoverInfo && <div className="map-cursor-readout map-cursor-light">{hoverInfo}</div>}
       </div>
 
-      <div className="legend-bar legend-light">
-        {activeLayer === "class" && <>
-          {analysisMode === "terrain" ? <>
-            <span className="legend-item"><span className="legend-dot" style={{ background: "rgb(34,177,76)" }}></span>Drivable</span>
-            <span className="legend-item"><span className="legend-dot" style={{ background: "rgb(210,142,35)" }}></span>Non-drivable</span>
-            <span className="legend-item"><span className="legend-dot" style={{ background: "rgb(194,57,52)" }}></span>Obstruction</span>
-            <span className="legend-item"><span className="legend-dot" style={{ background: "rgb(120,126,136)" }}></span>Unknown</span>
-          </> : <>
-            <span className="legend-item"><span className="legend-dot" style={{ background: "rgb(230,112,38)" }}></span>Static object</span>
-            <span className="legend-item"><span className="legend-dot" style={{ background: "rgb(16,164,203)" }}></span>Dynamic object</span>
-            <span className="legend-item"><span className="legend-dot" style={{ background: "rgb(140,145,154)" }}></span>Context / unknown</span>
-          </>}
-          <span className="legend-item"><span className="legend-dot" style={{ background: "rgb(250,170,30)" }}></span>Kerb</span>
-          <span className="legend-item"><span className="legend-dot" style={{ background: "rgb(150,40,200)" }}></span>Low Clear</span>
-          {analysisMode === "objects" && <span className="legend-item object-box-key">□ object box</span>}
-        </>}
-        {activeLayer === "height" && <>
-          <span className="legend-item"><span className="legend-dot" style={{ background: "rgb(0,0,200)" }}></span>-2.5m</span>
-          <span className="legend-item"><span className="legend-dot" style={{ background: "rgb(0,220,220)" }}></span>0m</span>
-          <span className="legend-item"><span className="legend-dot" style={{ background: "rgb(0,220,0)" }}></span>+2m</span>
-          <span className="legend-item"><span className="legend-dot" style={{ background: "rgb(255,220,0)" }}></span>+3m</span>
-          <span className="legend-item"><span className="legend-dot" style={{ background: "rgb(220,0,0)" }}></span>+4m</span>
-        </>}
-        {activeLayer === "traversability" && <>
-          <span className="legend-item"><span className="legend-dot" style={{ background: "rgb(46,160,80)" }}></span>Traversable</span>
-          <span className="legend-item"><span className="legend-dot" style={{ background: "rgb(200,50,50)" }}></span>Blocked</span>
-          <span className="legend-item"><span className="legend-dot" style={{ background: "rgb(180,180,185)" }}></span>Unknown</span>
-        </>}
-        {activeLayer === "moving" && <>
-          <span className="legend-item"><span className="legend-dot" style={{ background: "rgb(60,120,200)" }}></span>Static</span>
-          <span className="legend-item"><span className="legend-dot" style={{ background: "rgb(200,30,30)" }}></span>Moving</span>
-        </>}
-
-        <span className="legend-sep"></span>
-        {analysisMode === "objects" && frame?.objects && frame.objects.length > 0 && (
-          <span className="legend-item obj-stat">
-            <span className="legend-dot" style={{ background: "rgba(220,20,60,0.9)" }}></span>{movingCount} moving
-            &nbsp;·&nbsp;
-            <span className="legend-dot" style={{ background: "rgba(0,0,0,0.7)" }}></span>{staticCount} static
-            {filteredCount > 0 && (
-              <span style={{ color: "#999", marginLeft: 6, fontSize: "0.7rem" }}>
-                (+{filteredCount} oversized skipped)
-              </span>
-            )}
-          </span>
-        )}
+      <div className="map-footer-controls">
+        <span className="map-help">Top view · drag to pan · scroll to zoom</span>
+        <div className="zoom-controls">
+          <button className="ctrl-btn" onClick={() => setZoom((z) => Math.min(8.0, z * 1.25))}>+</button>
+          <button className="ctrl-btn" onClick={() => setZoom((z) => Math.max(0.3, z / 1.25))}>−</button>
+          <button className="ctrl-btn reset-btn" onClick={() => { setZoom(2.0); setOffset({ x: 0, y: 0 }); }}>Reset</button>
+          <button className={`ctrl-btn reset-btn ${layersOpen ? "control-active" : ""}`} onClick={() => setLayersOpen((value) => !value)}>Layers</button>
+        </div>
       </div>
     </div>
   );

@@ -6,9 +6,9 @@ interface MemoryMeterProps {
 }
 
 function formatBytes(bytes: number): string {
-  if (bytes >= 1e9) return `${(bytes / 1e9).toFixed(2)} GB`;
-  if (bytes >= 1e6) return `${(bytes / 1e6).toFixed(2)} MB`;
-  if (bytes >= 1e3) return `${(bytes / 1e3).toFixed(1)} KB`;
+  if (bytes >= 1073741824) return `${(bytes / 1073741824).toFixed(2)} GiB`;
+  if (bytes >= 1048576) return `${(bytes / 1048576).toFixed(1)} MiB`;
+  if (bytes >= 1024) return `${(bytes / 1024).toFixed(1)} KiB`;
   return `${bytes} B`;
 }
 
@@ -55,7 +55,7 @@ export const MemoryMeter: React.FC<MemoryMeterProps> = ({ memory }) => {
 
         <div className="memory-bar-item">
           <div className="bar-labels">
-            <span className="label-name">Uniform 2.5D (5 cm grid)</span>
+            <span className="label-name">Uniform 2.5D (finest cell baseline)</span>
             <span className="label-val">{formatBytes(uniform25d_bytes)}</span>
           </div>
           <div className="progress-bg">
@@ -65,7 +65,7 @@ export const MemoryMeter: React.FC<MemoryMeterProps> = ({ memory }) => {
 
         <div className="memory-bar-item highlight-item">
           <div className="bar-labels">
-            <span className="label-name">FoveaMap (4-Ring Variable)</span>
+            <span className="label-name">FoveaMap (adaptive grid)</span>
             <span className="label-val highlight-val">{formatBytes(fovea_bytes)}</span>
           </div>
           <div className="progress-bg">
@@ -94,6 +94,7 @@ export const MemoryMeter: React.FC<MemoryMeterProps> = ({ memory }) => {
           <span className="stat-pill-val">{denseRatio}× smaller</span>
         </div>
       </div>
+      <p className="memory-scale-note">Bar lengths use a logarithmic scale. Map allocation is not GPU VRAM. Basis: {memory.basis}.</p>
     </div>
   );
 };

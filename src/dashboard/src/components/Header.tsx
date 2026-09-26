@@ -9,8 +9,6 @@ interface HeaderProps {
 }
 
 export const Header: React.FC<HeaderProps> = ({ connected, frame, state, title }) => {
-  const model = frame?.model || state?.model || "oracle";
-  const preset = frame?.preset || state?.preset || "fovea_default";
   const sequence = frame?.seq || state?.seq || "08";
   const rings = frame?.rings ?? [];
   const gridSummary = rings.length
@@ -23,9 +21,7 @@ export const Header: React.FC<HeaderProps> = ({ connected, frame, state, title }
       <p className="header-description">Adaptive 2.5D mapping · {gridSummary}</p>
     </div>
     <div className="header-statuses">
-      <span className={`live-status ${connected ? "online" : "offline"}`}><i />{connected ? "LIVE" : "RECONNECTING"}</span>
-      <span className="header-select">{model === "oracle" ? "Ground Truth" : model.toUpperCase()} <b>⌄</b></span>
-      <span className="header-select">{preset.replaceAll("_", " ")} <b>⌄</b></span>
+      <span className={`live-status ${connected ? "online" : "offline"}`}><i />{connected ? state?.is_playing ? "Streaming" : "Connected · paused" : "Reconnecting"}</span>
     </div>
   </header>;
 };
