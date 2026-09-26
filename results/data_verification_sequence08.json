@@ -1,0 +1,16 @@
+[
+  {
+    "seq": "08",
+    "n_scans": 4071,
+    "n_labels": 4071,
+    "n_poses": 4071,
+    "n_times": 4071,
+    "poses_source": "C:\\Users\\Sachin Nain\\Downloads\\SIH-2026-main (1)\\SIH-2026-main\\data\\dataset\\sequences\\08\\poses.txt",
+    "errors": [],
+    "warnings": [],
+    "notes": [
+      "loaded 50 sample scans"
+    ],
+    "ok": true
+  }
+]

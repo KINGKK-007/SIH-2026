@@ -1,30 +1,38 @@
 import React, { useEffect, useRef, useState } from "react";
-import type { ActiveLayer, FrameUpdatePayload } from "../types";
+import type { ActiveLayer, AnalysisMode, FrameUpdatePayload } from "../types";
 
 interface MapViewProps {
   frame: FrameUpdatePayload | null;
   activeLayer: ActiveLayer;
   onLayerChange: (layer: ActiveLayer) => void;
+  analysisMode: AnalysisMode;
+  onAnalysisModeChange: (mode: AnalysisMode) => void;
+  selectedRing: number | null;
+  onRingSelect: (ring: number | null) => void;
+  selectedObject: number | null;
+  onObjectSelect: (id: number | null) => void;
 }
 
 // Bit flags matching Python grid/layers.py
 const FLAG_HAS_GROUND   = 0x01;
-const FLAG_HAS_OBSTACLE = 0x02;
 const FLAG_KERB         = 0x08;
 const FLAG_LOW_CLEAR    = 0x10;
 const FLAG_TRAVERSABLE  = 0x20;
 
-// SemanticKITTI official per-class colors mapped to super-classes
-// Ground (road=purple, sidewalk=magenta) → DRIVABLE uses road hue
-// Nature (vegetation=olive, terrain=pale-green) → TERRAIN uses vegetation olive
-// Structure+static vehicles (building=dark-gray, car=navy) → STATIC uses navy
-// Human+dynamic vehicles (person=crimson, car-moving) → DYNAMIC uses crimson
-const CLASS_COLORS: Record<number, [number, number, number, number]> = {
-  0: [160, 160, 165, 0.28],  // UNKNOWN      — neutral gray
-  1: [128,  64, 255, 0.90],  // DRIVABLE     — SemanticKITTI road purple
-  2: [107, 142,  35, 0.90],  // TERRAIN      — SemanticKITTI vegetation olive
-  3: [ 30,  60, 140, 0.90],  // STATIC OBS   — SemanticKITTI vehicle navy
-  4: [220,  20,  60, 0.92],  // DYNAMIC      — SemanticKITTI person crimson
+const TERRAIN_COLORS: Record<number, [number, number, number, number]> = {
+  0: [120, 126, 136, 0.35],
+  1: [34, 177, 76, 0.94],
+  2: [210, 142, 35, 0.92],
+  3: [194, 57, 52, 0.90],
+  4: [194, 57, 52, 0.90],
+};
+
+const OBJECT_COLORS: Record<number, [number, number, number, number]> = {
+  0: [140, 145, 154, 0.20],
+  1: [101, 116, 132, 0.18],
+  2: [101, 116, 132, 0.20],
+  3: [230, 112, 38, 0.95],
+  4: [16, 164, 203, 0.98],
 };
 
 // Per-ring boundary colors (darker for light bg)
@@ -44,13 +52,25 @@ function jetColor(t: number): [number, number, number] {
   return [r, g, b];
 }
 
-export const MapView: React.FC<MapViewProps> = ({ frame, activeLayer, onLayerChange }) => {
+export const MapView: React.FC<MapViewProps> = ({
+  frame,
+  activeLayer,
+  onLayerChange,
+  analysisMode,
+  selectedRing,
+  onRingSelect,
+  selectedObject,
+  onObjectSelect,
+}) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const containerRef = useRef<HTMLDivElement | null>(null);
   const [zoom, setZoom] = useState<number>(2.0);
   const [offset, setOffset] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
   const [isDragging, setIsDragging] = useState<boolean>(false);
   const [dragStart, setDragStart] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
   const [hoverInfo, setHoverInfo] = useState<string | null>(null);
+  const [layersOpen, setLayersOpen] = useState(false);
+  const [visibility, setVisibility] = useState({ rings: true, objects: true, vehicle: true });
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -63,8 +83,8 @@ export const MapView: React.FC<MapViewProps> = ({ frame, activeLayer, onLayerCha
     const centerX = width / 2 + offset.x;
     const centerY = height / 2 + offset.y;
 
-    // White/light background
-    ctx.fillStyle = "#f4f5f7";
+    // Dark perception-console background
+    ctx.fillStyle = "#080c11";
     ctx.fillRect(0, 0, width, height);
 
     const maxExtentMm = frame?.rings?.length
@@ -77,30 +97,30 @@ export const MapView: React.FC<MapViewProps> = ({ frame, activeLayer, onLayerCha
     // Light grid circles every 20m
     for (let r = 20000; r <= maxExtentMm; r += 20000) {
       const px = r * scale;
-      ctx.strokeStyle = "rgba(0,0,0,0.06)";
+      ctx.strokeStyle = "rgba(150,190,220,0.10)";
       ctx.lineWidth = 1;
       ctx.beginPath();
       ctx.arc(centerX, centerY, px, 0, 2 * Math.PI);
       ctx.stroke();
-      ctx.fillStyle = "rgba(0,0,0,0.28)";
+      ctx.fillStyle = "rgba(180,200,215,0.42)";
       ctx.font = "10px monospace";
       ctx.fillText(`${r / 1000}m`, centerX + 4, centerY - px + 12);
     }
 
     // Axis lines
-    ctx.strokeStyle = "rgba(0,0,0,0.10)";
+    ctx.strokeStyle = "rgba(150,190,220,0.13)";
     ctx.lineWidth = 1;
     ctx.beginPath();
     ctx.moveTo(centerX, 0); ctx.lineTo(centerX, height);
     ctx.moveTo(0, centerY); ctx.lineTo(width, centerY);
     ctx.stroke();
 
-    ctx.fillStyle = "rgba(0,0,0,0.25)";
+    ctx.fillStyle = "rgba(180,200,215,0.48)";
     ctx.font = "11px monospace";
     ctx.fillText("↑ FWD", centerX + 5, Math.max(15, centerY - maxExtentMm * scale - 4));
 
     if (!frame || !frame.rings || frame.rings.length === 0) {
-      ctx.fillStyle = "rgba(0,0,0,0.4)";
+      ctx.fillStyle = "rgba(210,225,235,0.55)";
       ctx.font = "14px sans-serif";
       ctx.textAlign = "center";
       ctx.fillText("Waiting for frame data...", width / 2, height / 2 + 40);
@@ -142,7 +162,8 @@ export const MapView: React.FC<MapViewProps> = ({ frame, activeLayer, onLayerCha
             [r, g, b, a] = [250, 170, 30, 0.95];  // SemanticKITTI traffic-sign amber
           } else {
             const clsId = ring.cls[i] || 0;
-            [r, g, b, a] = CLASS_COLORS[clsId] ?? CLASS_COLORS[0];
+            const palette = analysisMode === "terrain" ? TERRAIN_COLORS : OBJECT_COLORS;
+            [r, g, b, a] = palette[clsId] ?? palette[0];
           }
         } else if (activeLayer === "height") {
           const gz = ring.ground_z[i];
@@ -171,32 +192,31 @@ export const MapView: React.FC<MapViewProps> = ({ frame, activeLayer, onLayerCha
         ctx.fillRect(screenX + gapOff, screenY + gapOff, drawPx, drawPx);
       }
 
-      // Ring boundary square
-      const boundaryPx = rMax * scale;
-      const borderColor = RING_COLORS[ring.ring_idx % RING_COLORS.length];
-      ctx.strokeStyle = borderColor;
-      ctx.lineWidth = ring.ring_idx === 0 ? 2 : 1.5;
-      ctx.setLineDash(ring.ring_idx === 0 ? [] : [5, 3]);
-      ctx.strokeRect(centerX - boundaryPx, centerY - boundaryPx, boundaryPx * 2, boundaryPx * 2);
-      ctx.setLineDash([]);
-
-      // Resolution badge inside top-left corner
-      const resCm = cellMm / 10;
-      const resLabel = `R${ring.ring_idx}  ${resCm % 1 === 0 ? resCm.toFixed(0) : resCm.toFixed(1)} cm/cell  ±${rMax / 1000}m`;
-      ctx.font = "bold 11px monospace";
-      const lw = ctx.measureText(resLabel).width;
-      const bx = centerX - boundaryPx + 5;
-      const by = centerY - boundaryPx + 5;
-      ctx.fillStyle = "rgba(255,255,255,0.85)";
-      ctx.fillRect(bx, by, lw + 8, 19);
-      ctx.fillStyle = borderColor.replace(/[\d.]+\)$/, "1)");
-      ctx.fillText(resLabel, bx + 4, by + 14);
+      if (visibility.rings) {
+        const boundaryPx = rMax * scale;
+        const borderColor = RING_COLORS[ring.ring_idx % RING_COLORS.length];
+        ctx.strokeStyle = borderColor;
+        ctx.lineWidth = selectedRing === ring.ring_idx ? 3 : ring.ring_idx === 0 ? 2 : 1.5;
+        ctx.setLineDash(ring.ring_idx === 0 ? [] : [5, 3]);
+        ctx.strokeRect(centerX - boundaryPx, centerY - boundaryPx, boundaryPx * 2, boundaryPx * 2);
+        ctx.setLineDash([]);
+        const resCm = cellMm / 10;
+        const resLabel = `R${ring.ring_idx}  ${resCm % 1 === 0 ? resCm.toFixed(0) : resCm.toFixed(1)} cm/cell  ±${rMax / 1000}m`;
+        ctx.font = "bold 11px monospace";
+        const lw = ctx.measureText(resLabel).width;
+        const bx = centerX - boundaryPx + 5;
+        const by = centerY - boundaryPx + 5;
+        ctx.fillStyle = "rgba(8,12,17,0.88)";
+        ctx.fillRect(bx, by, lw + 8, 19);
+        ctx.fillStyle = borderColor.replace(/[\d.]+\)$/, "1)");
+        ctx.fillText(resLabel, bx + 4, by + 14);
+      }
     }
 
     // Object bounding boxes — black rectangle outlines (SemanticKITTI 3D box style)
     // Skip degenerate boxes from clustering artifacts (> 15m = merged cluster, not a single vehicle)
     const MAX_BOX_M = 15.0;
-    if (frame.objects && frame.objects.length > 0) {
+    if (visibility.objects && analysisMode === "objects" && frame.objects && frame.objects.length > 0) {
       for (const obj of frame.objects) {
         const [ox, oy] = obj.center;
         const [l, w] = obj.size;
@@ -222,8 +242,8 @@ export const MapView: React.FC<MapViewProps> = ({ frame, activeLayer, onLayerCha
         ctx.fillRect(-wPx / 2, -lPx / 2, wPx, lPx);
 
         // Black rectangle outline — solid black like SemanticKITTI 3D boxes
-        ctx.strokeStyle = "#000000";
-        ctx.lineWidth = 2;
+        ctx.strokeStyle = selectedObject === obj.id ? "#23c7d9" : "#05080b";
+        ctx.lineWidth = selectedObject === obj.id ? 3 : 2;
         ctx.strokeRect(-wPx / 2, -lPx / 2, wPx, lPx);
 
         // Forward direction tick (white over black)
@@ -258,15 +278,37 @@ export const MapView: React.FC<MapViewProps> = ({ frame, activeLayer, onLayerCha
     }
 
     // Ego-vehicle (blue box like SemanticKITTI)
-    const vehW = Math.max(6, 2000 * scale);
-    const vehL = Math.max(9, 4000 * scale);
-    ctx.fillStyle = "#1a5276";
-    ctx.fillRect(centerX - vehW / 2, centerY - vehL / 2, vehW, vehL);
-    ctx.strokeStyle = "#fff";
-    ctx.lineWidth = 1.5;
-    ctx.strokeRect(centerX - vehW / 2, centerY - vehL / 2, vehW, vehL);
+    if (visibility.vehicle) {
+      const vehW = Math.max(6, 2000 * scale);
+      const vehL = Math.max(9, 4000 * scale);
+      ctx.fillStyle = "#1a5276";
+      ctx.fillRect(centerX - vehW / 2, centerY - vehL / 2, vehW, vehL);
+      ctx.strokeStyle = "#fff";
+      ctx.lineWidth = 1.5;
+      ctx.strokeRect(centerX - vehW / 2, centerY - vehL / 2, vehW, vehL);
+    }
 
-  }, [frame, activeLayer, zoom, offset]);
+  }, [frame, activeLayer, analysisMode, visibility, zoom, offset, selectedRing, selectedObject]);
+
+  useEffect(() => {
+    const container = containerRef.current;
+    const canvas = canvasRef.current;
+    if (!container || !canvas) return;
+    const resize = () => {
+      const rect = container.getBoundingClientRect();
+      const width = Math.max(320, Math.round(rect.width));
+      const height = Math.max(360, Math.round(rect.height));
+      if (canvas.width !== width || canvas.height !== height) {
+        canvas.width = width;
+        canvas.height = height;
+        setOffset((current) => ({ ...current }));
+      }
+    };
+    const observer = new ResizeObserver(resize);
+    observer.observe(container);
+    resize();
+    return () => observer.disconnect();
+  }, []);
 
   // Interactions
   const handleMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
@@ -305,6 +347,34 @@ export const MapView: React.FC<MapViewProps> = ({ frame, activeLayer, onLayerCha
 
   const handleMouseUp = () => setIsDragging(false);
 
+  const handleMapClick = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    if (Math.abs(e.clientX - dragStart.x - offset.x) > 4 || Math.abs(e.clientY - dragStart.y - offset.y) > 4) return;
+    const canvas = canvasRef.current;
+    if (!canvas || !frame?.rings.length) return;
+    const rect = canvas.getBoundingClientRect();
+    const mx = (e.clientX - rect.left) * canvas.width / rect.width;
+    const my = (e.clientY - rect.top) * canvas.height / rect.height;
+    const cx = canvas.width / 2 + offset.x, cy = canvas.height / 2 + offset.y;
+    const maxExtentMm = Math.max(...frame.rings.map((ring) => ring.r_max_mm));
+    const scale = (Math.min(canvas.width, canvas.height) * 0.44 / maxExtentMm) * zoom;
+    const xM = -(my - cy) / scale / 1000;
+    const yM = -(mx - cx) / scale / 1000;
+
+    if (analysisMode === "objects" && visibility.objects) {
+      const nearest = frame.objects
+        .map((object) => ({ object, distance: Math.hypot(object.center[0] - xM, object.center[1] - yM) }))
+        .filter(({ object }) => object.size[0] <= 15 && object.size[1] <= 15)
+        .sort((a, b) => a.distance - b.distance)[0];
+      if (nearest && nearest.distance <= Math.max(nearest.object.size[0], nearest.object.size[1], 2)) {
+        onObjectSelect(nearest.object.id === selectedObject ? null : nearest.object.id);
+        return;
+      }
+    }
+    const distanceMm = Math.max(Math.abs(xM), Math.abs(yM)) * 1000;
+    const ring = [...frame.rings].sort((a, b) => a.r_max_mm - b.r_max_mm).find((item) => distanceMm <= item.r_max_mm);
+    onRingSelect(ring?.ring_idx === selectedRing ? null : ring?.ring_idx ?? null);
+  };
+
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -328,35 +398,45 @@ export const MapView: React.FC<MapViewProps> = ({ frame, activeLayer, onLayerCha
   return (
     <div className="map-view-wrapper">
       <div className="map-toolbar">
-        <div className="layer-selector">
-          {(["class", "height", "traversability", "moving", "confidence"] as ActiveLayer[]).map((lyr) => (
-            <button
-              key={lyr}
-              className={`layer-btn ${activeLayer === lyr ? "layer-active" : ""}`}
-              onClick={() => onLayerChange(lyr)}
-            >
-              {lyr === "class" ? "CLASS" : lyr === "height" ? "HEIGHT"
-               : lyr === "traversability" ? "TRAVERSAL"
-               : lyr === "moving" ? "MOTION" : "CONFIDENCE"}
-            </button>
-          ))}
+        <div className="analysis-controls">
+          <span className="viewer-layer-label">MAP MODE</span>
+          <div className="overlay-selector" aria-label="Supporting overlay">
+            {(["class", "height", "confidence", "traversability"] as ActiveLayer[]).map((lyr) => (
+              <button
+                key={lyr}
+                className={`overlay-btn ${activeLayer === lyr ? "overlay-active" : ""}`}
+                onClick={() => onLayerChange(lyr)}
+              >
+                {lyr === "class" ? "Semantic" : lyr === "height" ? "Elevation"
+                 : lyr === "traversability" ? "Traversability" : "Confidence"}
+              </button>
+            ))}
+          </div>
         </div>
         <div className="zoom-controls">
           <button className="ctrl-btn" onClick={() => setZoom((z) => Math.min(8.0, z * 1.25))}>+</button>
           <button className="ctrl-btn" onClick={() => setZoom((z) => Math.max(0.3, z / 1.25))}>−</button>
           <button className="ctrl-btn reset-btn" onClick={() => { setZoom(2.0); setOffset({ x: 0, y: 0 }); }}>Reset</button>
+          <button className={`ctrl-btn reset-btn ${layersOpen ? "control-active" : ""}`} onClick={() => setLayersOpen((value) => !value)}>Layers</button>
         </div>
       </div>
 
-      <div className="canvas-container" style={{ background: "#f4f5f7" }}>
+      {layersOpen && <div className="layers-popover">
+        <strong>VISIBLE OVERLAYS</strong>
+        {(["rings", "objects", "vehicle"] as const).map((item) => <label key={item}>
+          <input type="checkbox" checked={visibility[item]} onChange={() => setVisibility((current) => ({ ...current, [item]: !current[item] }))} />
+          <span>{item === "rings" ? "Resolution rings" : item[0].toUpperCase() + item.slice(1)}</span>
+        </label>)}
+      </div>}
+
+      <div className="canvas-container" ref={containerRef}>
         <canvas
           ref={canvasRef}
-          width={860}
-          height={800}
           style={{ cursor: isDragging ? "grabbing" : "crosshair" }}
           onMouseDown={handleMouseDown}
           onMouseMove={handleMouseMove}
           onMouseUp={handleMouseUp}
+          onClick={handleMapClick}
           onMouseLeave={handleMouseUp}
         />
         {hoverInfo && <div className="map-cursor-readout map-cursor-light">{hoverInfo}</div>}
@@ -364,15 +444,19 @@ export const MapView: React.FC<MapViewProps> = ({ frame, activeLayer, onLayerCha
 
       <div className="legend-bar legend-light">
         {activeLayer === "class" && <>
-          <span className="legend-item"><span className="legend-dot" style={{ background: "rgb(128,64,255)" }}></span>Drivable</span>
-          <span className="legend-item"><span className="legend-dot" style={{ background: "rgb(107,142,35)" }}></span>Terrain</span>
-          <span className="legend-item"><span className="legend-dot" style={{ background: "rgb(30,60,140)" }}></span>Static Obs</span>
-          <span className="legend-item"><span className="legend-dot" style={{ background: "rgb(220,20,60)" }}></span>Dynamic</span>
+          {analysisMode === "terrain" ? <>
+            <span className="legend-item"><span className="legend-dot" style={{ background: "rgb(34,177,76)" }}></span>Drivable</span>
+            <span className="legend-item"><span className="legend-dot" style={{ background: "rgb(210,142,35)" }}></span>Non-drivable</span>
+            <span className="legend-item"><span className="legend-dot" style={{ background: "rgb(194,57,52)" }}></span>Obstruction</span>
+            <span className="legend-item"><span className="legend-dot" style={{ background: "rgb(120,126,136)" }}></span>Unknown</span>
+          </> : <>
+            <span className="legend-item"><span className="legend-dot" style={{ background: "rgb(230,112,38)" }}></span>Static object</span>
+            <span className="legend-item"><span className="legend-dot" style={{ background: "rgb(16,164,203)" }}></span>Dynamic object</span>
+            <span className="legend-item"><span className="legend-dot" style={{ background: "rgb(140,145,154)" }}></span>Context / unknown</span>
+          </>}
           <span className="legend-item"><span className="legend-dot" style={{ background: "rgb(250,170,30)" }}></span>Kerb</span>
           <span className="legend-item"><span className="legend-dot" style={{ background: "rgb(150,40,200)" }}></span>Low Clear</span>
-          <span className="legend-item" style={{ fontSize: "0.7rem", color: "#555", borderLeft: "1px solid rgba(0,0,0,0.10)", paddingLeft: 12 }}>
-            □ vehicle box
-          </span>
+          {analysisMode === "objects" && <span className="legend-item object-box-key">□ object box</span>}
         </>}
         {activeLayer === "height" && <>
           <span className="legend-item"><span className="legend-dot" style={{ background: "rgb(0,0,200)" }}></span>-2.5m</span>
@@ -392,7 +476,7 @@ export const MapView: React.FC<MapViewProps> = ({ frame, activeLayer, onLayerCha
         </>}
 
         <span className="legend-sep"></span>
-        {frame?.objects && frame.objects.length > 0 && (
+        {analysisMode === "objects" && frame?.objects && frame.objects.length > 0 && (
           <span className="legend-item obj-stat">
             <span className="legend-dot" style={{ background: "rgba(220,20,60,0.9)" }}></span>{movingCount} moving
             &nbsp;·&nbsp;

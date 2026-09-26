@@ -23,6 +23,7 @@ this wrapper can satisfy on its own:
 
 from __future__ import annotations
 
+import copy
 import hashlib
 import sys
 import warnings
@@ -36,6 +37,39 @@ from foveamap.io.labels import learning_to_raw
 from foveamap.pipeline.records import Prediction, Scan
 
 _REPO_ROOT = Path(__file__).resolve().parents[3]
+
+
+def resolve_inference_geometry(lsk_yaml: dict[str, Any], lsk_cfg: Any) -> dict[str, Any]:
+    """Return a model config with native or 100 m sparse geometry applied.
+
+    The extended profile changes coordinate bounds and sparse spatial shape but
+    preserves the native voxel size on every axis.  This function is deliberately
+    independent of torch/spconv so it can be validated on CPU development machines.
+    """
+    resolved = copy.deepcopy(lsk_yaml)
+    native_min = np.asarray(resolved["dataset_params"]["min_volume_space"], dtype=np.float64)
+    native_max = np.asarray(resolved["dataset_params"]["max_volume_space"], dtype=np.float64)
+    native_shape = np.asarray(resolved["model_params"]["spatial_shape"], dtype=np.int64)
+
+    if lsk_cfg.coverage_profile == "native":
+        return resolved
+
+    extended_min = np.asarray(lsk_cfg.extended_min_volume_space, dtype=np.float64)
+    extended_max = np.asarray(lsk_cfg.extended_max_volume_space, dtype=np.float64)
+    extended_shape = np.asarray(lsk_cfg.extended_spatial_shape, dtype=np.int64)
+    native_voxel = (native_max - native_min) / native_shape
+    extended_voxel = (extended_max - extended_min) / extended_shape
+    if not np.allclose(native_voxel, extended_voxel, rtol=0.0, atol=1e-12):
+        raise ValueError(
+            "extended_100m geometry must preserve the checkpoint voxel size: "
+            f"native={native_voxel.tolist()}, extended={extended_voxel.tolist()}"
+        )
+
+    resolved["dataset_params"]["min_volume_space"] = extended_min.tolist()
+    resolved["dataset_params"]["max_volume_space"] = extended_max.tolist()
+    resolved["dataset_params"]["spatial_shape"] = extended_shape.tolist()
+    resolved["model_params"]["spatial_shape"] = extended_shape.tolist()
+    return resolved
 
 
 def checkpoint_sha256(path: str | Path) -> str:
@@ -139,9 +173,11 @@ class LSK3DNetModel:
         if self.device.type == "cuda" and not torch.cuda.is_available():
             raise RuntimeError("configs/model.yaml sets device: cuda but torch.cuda.is_available() is False")
 
-        lsk_yaml = mods["load_yaml"](str(_repo_path(lsk_cfg.config_path)))
+        upstream_yaml = mods["load_yaml"](str(_repo_path(lsk_cfg.config_path)))
+        lsk_yaml = resolve_inference_geometry(upstream_yaml, lsk_cfg)
         self._min_volume = np.asarray(lsk_yaml["dataset_params"]["min_volume_space"], dtype=np.float64)
         self._max_volume = np.asarray(lsk_yaml["dataset_params"]["max_volume_space"], dtype=np.float64)
+        self.coverage_profile = lsk_cfg.coverage_profile
 
         # EasyDict so the vendored model code's `config['model_params']['x']` attribute-style access works.
         from easydict import EasyDict
@@ -209,7 +245,7 @@ class LSK3DNetModel:
 
         if n_in_crop < n:
             warnings.warn(
-                f"LSK3DNetModel: {n - n_in_crop}/{n} points fall outside the checkpoint's training crop "
+                f"LSK3DNetModel: {n - n_in_crop}/{n} points fall outside the configured inference volume "
                 f"({self._min_volume.tolist()} .. {self._max_volume.tolist()} m) and are reported as "
                 "UNKNOWN with conf=0",
                 stacklevel=2,

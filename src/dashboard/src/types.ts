@@ -82,3 +82,4 @@ export interface PlaybackState {
 }
 
 export type ActiveLayer = "class" | "height" | "traversability" | "moving" | "confidence";
+export type AnalysisMode = "terrain" | "objects";

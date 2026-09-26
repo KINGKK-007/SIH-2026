@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Iterable
 from pathlib import Path
 from typing import Any
 
@@ -13,6 +14,36 @@ from foveamap.config import load_config
 from foveamap.eval.buckets import horizontal_range
 from foveamap.grid.presets import load_preset
 from foveamap.io.sequence import Sequence
+
+
+def points_per_range_bin(
+    xyz_scans: Iterable[np.ndarray], bin_m: float = 5.0, max_m: float = 100.0
+) -> dict[str, list[float]]:
+    """Count points in horizontal-range bins across one or more scans.
+
+    The returned density is normalized per scan and by each annulus area.  This
+    is the stable T3.5 helper used by tests and by later sensor-density reports.
+    """
+    if bin_m <= 0 or max_m <= 0:
+        raise ValueError("bin_m and max_m must be positive")
+    edges = np.arange(0.0, max_m + bin_m / 2, bin_m)
+    counts = np.zeros(len(edges) - 1, dtype=np.int64)
+    n_scans = 0
+    for xyz in xyz_scans:
+        hist, _ = np.histogram(horizontal_range(xyz), bins=edges)
+        counts += hist
+        n_scans += 1
+    if n_scans == 0:
+        raise ValueError("no scans given")
+    annulus_area = np.pi * (edges[1:] ** 2 - edges[:-1] ** 2)
+    points_per_scan = counts / n_scans
+    return {
+        "edges_m": edges.tolist(),
+        "counts": counts.tolist(),
+        "points_per_scan": points_per_scan.tolist(),
+        "points_per_scan_per_m2": (points_per_scan / annulus_area).tolist(),
+        "n_scans": [float(n_scans)],
+    }
 
 
 def density_eval(
@@ -70,7 +101,9 @@ def density_eval(
     # Overlay ring boundaries
     ring_colors = ["#2ecc71", "#f1c40f", "#e67e22", "#e74c3c"]
     prev_r = 0.0
-    for k, (r_max, s, col) in enumerate(zip(ring_radii, ring_cell_sizes, ring_colors)):
+    for k, (r_max, s, col) in enumerate(
+        zip(ring_radii, ring_cell_sizes, ring_colors, strict=True)
+    ):
         ax.axvline(r_max, color=col, linestyle=":", linewidth=1.5)
         mid_r = (prev_r + r_max) / 2.0
         ax.text(mid_r, ax.get_ylim()[1] * 0.4, f"Ring {k}\n{int(s*100)}cm", ha="center", fontsize=8.5, fontweight="bold", color=col)
@@ -86,7 +119,7 @@ def density_eval(
     points_per_cell = np.zeros_like(density_per_m2)
     for i, r_c in enumerate(bin_centers):
         # Find which ring this range falls into
-        for r_max, s in zip(ring_radii, ring_cell_sizes):
+        for r_max, s in zip(ring_radii, ring_cell_sizes, strict=True):
             if r_c <= r_max:
                 cell_area = s * s
                 points_per_cell[i] = density_per_m2[i] * cell_area
@@ -101,10 +134,8 @@ def density_eval(
     ax.grid(True, linestyle="--", alpha=0.5)
     ax.legend(loc="upper right")
 
-    prev_r = 0.0
-    for k, (r_max, s, col) in enumerate(zip(ring_radii, ring_cell_sizes, ring_colors)):
+    for r_max, col in zip(ring_radii, ring_colors, strict=True):
         ax.axvline(r_max, color=col, linestyle=":", linewidth=1.5)
-        prev_r = r_max
 
     plt.tight_layout()
     occupancy_plot = plots_path / "occupancy_vs_range.png"
@@ -118,7 +149,7 @@ def density_eval(
         "max_range_m": max_m,
         "rings": [
             {"ring": k, "r_max_m": r_max, "cell_size_m": s}
-            for k, (r_max, s) in enumerate(zip(ring_radii, ring_cell_sizes))
+            for k, (r_max, s) in enumerate(zip(ring_radii, ring_cell_sizes, strict=True))
         ],
         "density_10m": float(density_per_m2[int(10 / bin_m)]),
         "density_30m": float(density_per_m2[int(30 / bin_m)]),

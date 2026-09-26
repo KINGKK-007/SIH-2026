@@ -151,5 +151,71 @@ Built before Gate 4 (D-020).
 - `results/tables/motion_ablation.md` written and frozen config committed.
 - Honest strengths/weaknesses summary added to `docs/LIMITATIONS.md`.
 
+## Sequence 08-only implementation refresh
 
+- 2026-09-26 · planning · Added `docs/LOCKED_IMPLEMENTATION_PLAN.md`; production decisions, 100 m LSK3DNet extension tests, two-mode frontend, separate analytics dashboard, evaluation definitions and minimum submission scope are frozen in D-026–D-028.
+- 2026-09-26 · data assembly · Merged the five timestamped sequence-08 chunks into `data/dataset/sequences/08` with space-saving NTFS hard links; excluded accidental duplicates `000699(1).bin` and `000711(1).bin`; retained all source chunks.
+- 2026-09-26 · data verification · `python scripts/verify_data.py --sequences 08 --json results/data_verification_sequence08.json`: PASS, 4,071 scans, 4,071 labels, 4,071 poses, 4,071 timestamps; 50 sampled scans loaded successfully.
+- 2026-09-26 · real-frame inspection · frame 000000 loaded with 123,389 points and wrote `results/plots/inspect_08_000000.png`.
+- 2026-09-26 · I/O regression · `python -m pytest tests/io -q`: 62 passed.
 
+### Sequence 08 data gate — passed 2026-09-26
+
+## Sequence 08 real-data regression
+
+- 2026-09-26 · alignment · 50 consecutive-frame pairs: specified static classes median 0.0463 m, compact structures median 0.0355 m, identity control 0.6488 m; threshold 0.15 m; PASS. Wrote `results/frame_alignment_sequence08.json`.
+- 2026-09-26 · statistics · Scanned all 4,071 frames and wrote `results/data_stats_sequence08.json` and `results/tables/data_stats_sequence08.md`. The 60–100 m bucket contains 4,290,586 points, of which 4,214,576 are ground-truth `UNKNOWN`; long-range metrics must retain counts and unknown rates.
+- 2026-09-26 · environment · Corrected the editable install to the active `(1)` repository and installed declared dependencies `psutil` and `python-socketio` (D-029).
+- 2026-09-26 · regression fix · Restored `points_per_range_bin` after the Phase 12 density module had removed the T3.5 API (D-030); `tests/eval/test_buckets.py`: 7 passed; Ruff clean.
+- 2026-09-26 · real-data tests · `python -m pytest -m data -q`: 5 passed, 684 deselected.
+
+### Sequence 08 real-data regression gate — passed 2026-09-26
+
+## LSK3DNet 100 m implementation — CPU/config portion
+
+- 2026-09-26 · D-031 · Added explicit `native` and `extended_100m` coverage profiles. Production defaults to bounds [-100,100] m in x/y with `spatial_shape=[4000,4000,120]`, preserving 5 cm voxels; native remains available for three-scan parity.
+- 2026-09-26 · geometry safety · `resolve_inference_geometry` deep-copies the upstream YAML, updates both model and dataset sparse shapes, and rejects an extended profile whose voxel size differs from the checkpoint.
+- 2026-09-26 · verification · `tests/test_config.py` plus `tests/models/test_lsk3dnet_geometry.py`: 77 passed; Ruff clean. No model inference or GPU benchmark was run on this lower-spec development device.
+
+### LSK3DNet 100 m implementation status — code/config complete; RTX 4050 evidence pending
+
+The next local implementation phase is the two-mode frontend and separate `/dashboard`. Native parity, 100-scan stability, near-field agreement and long-range accuracy remain target-machine acceptance steps.
+
+## Problem-statement frontend alignment
+
+- 2026-09-26 · D-032 · Replaced the five equal-weight layer choices with two primary modes: Terrain Analysis and Object Detection. Supporting semantic, elevation, traversability, motion and confidence views are now contextual overlays within the relevant mode.
+- 2026-09-26 · adaptive representation · Kept the four resolution boundaries, per-ring cell-size labels and 100 m coverage visible in both modes; added a compact live summary for adaptive-grid settings, pipeline FPS, latency and map memory.
+- 2026-09-26 · analytics separation · Moved detailed memory accounting and latency breakdown to `/dashboard`; the header opens it in a separate tab and provides a return-to-map action.
+- 2026-09-26 · verification · Installed the pinned dashboard dependencies with `npm ci`; `npm run typecheck`, `npm run lint` and `npm run build` pass. No model inference, CUDA check or GPU benchmark was run.
+
+### Frontend alignment gate — passed 2026-09-26
+
+The next implementation phase is evaluation and evidence tooling that can be developed locally, followed by the explicitly deferred RTX 4050 acceptance run for LSK3DNet accuracy, VRAM and latency.
+
+## Unified semantic evaluation and evidence
+
+- 2026-09-26 · D-033 · Implemented confusion-matrix IoU/accuracy metrics with absent-class handling and strict shape/class validation.
+- 2026-09-26 · cached evaluation · Added streaming sequence evaluation over the locked 1271-4070 interval. It reports 19-class and four-superclass accuracy, six distance bands, per-class support, unknown prediction rates, cache provenance and exact point accounting through 100 m.
+- 2026-09-26 · CLI · Added `foveamap evaluate`, producing `results/semantic_evaluation_sequence08.json` and `results/tables/semantic_evaluation_sequence08.md` from cached predictions without loading the model or CUDA.
+- 2026-09-26 · verification · `python -m pytest tests/eval -q`: 22 passed; focused Ruff checks pass. Synthetic end-to-end coverage verifies cache loading, provenance, perfect-label mIoU and both output artifacts.
+
+### Unified semantic evaluation gate — passed 2026-09-26
+
+Production command after the RTX 4050 cache is copied into place:
+
+```powershell
+python -m foveamap.cli evaluate --sequence 08 --model lsk3dnet --cache-root data/cache/pred --data-root data/dataset --start 1271 --stop 4071 --json results/semantic_evaluation_sequence08.json --table results/tables/semantic_evaluation_sequence08.md
+```
+
+Next: implement the RTX 4050 acceptance runner for native parity, extended-100 m consistency, 100-scan stability, VRAM, latency and cache provenance.
+
+## Frontend redesign integration
+
+- 2026-09-26 · D-034 · Integrated the `frontend.md` application shell: collapsible sidebar, simplified live header, four primary KPI cards, hero LiDAR map, adaptive-ring panel, object list, terrain composition and dedicated Performance and Foveated-vs-Uniform views.
+- 2026-09-26 · data integrity · Preserved the current Canvas renderer and Socket.IO pipeline. Cards and panels derive values from live frame payloads; missing benchmark values remain explicitly unmeasured. Production rings remain 5/10/20/40 cm per the locked implementation plan.
+- 2026-09-26 · visual system · Applied the dark perception-console palette, neutral panels, restrained cyan/green/amber/red accents, responsive desktop/tablet/mobile layouts and a dark map canvas.
+- 2026-09-26 · verification · Dashboard TypeScript, Oxlint and Vite production build all pass.
+
+### Frontend redesign foundation — passed 2026-09-26
+
+Remaining frontend polish from `frontend.md`: historical telemetry charts, interactive layer visibility checkboxes, ring/object map selection and ingestion of the final RTX 4050 evaluation artifacts.

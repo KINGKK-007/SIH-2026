@@ -5,56 +5,30 @@ interface HeaderProps {
   connected: boolean;
   frame: FrameUpdatePayload | null;
   state: PlaybackState | null;
-  fps: number;
+  title: string;
 }
 
-export const Header: React.FC<HeaderProps> = ({ connected, frame, state, fps }) => {
-  const modelName = frame?.model || state?.model || "oracle";
-  const presetName = frame?.preset || state?.preset || "fovea_default";
-  const seqName = frame?.seq || state?.seq || "08";
-
-  return (
-    <header className="header-container">
-      <div className="header-left">
-        <div className="brand-logo">
-          <div className="logo-ring outer"></div>
-          <div className="logo-ring mid"></div>
-          <div className="logo-ring inner"></div>
-          <span className="brand-title">FoveaMap</span>
-        </div>
-        <span className="brand-tagline">Multi-Ring 2.5D Semantic LiDAR Map</span>
-      </div>
-
-      <div className="header-center">
-        <div className="badge badge-seq">
-          <span className="badge-label">Sequence</span>
-          <span className="badge-value">{seqName}</span>
-        </div>
-
-        <div className={`badge badge-mode ${modelName.includes("oracle") ? "mode-oracle" : "mode-model"}`}>
-          <span className="badge-dot"></span>
-          <span className="badge-value">
-            {modelName === "oracle" ? "ORACLE (Ground Truth)" : `MODEL (${modelName})`}
-          </span>
-        </div>
-
-        <div className="badge badge-preset">
-          <span className="badge-label">Preset</span>
-          <span className="badge-value">{presetName}</span>
-        </div>
-      </div>
-
-      <div className="header-right">
-        <div className="telemetry-badge">
-          <span className="telemetry-label">Display FPS</span>
-          <span className="telemetry-val">{fps > 0 ? fps.toFixed(1) : "—"}</span>
-        </div>
-
-        <div className={`conn-status ${connected ? "conn-active" : "conn-offline"}`}>
-          <span className="conn-dot"></span>
-          <span className="conn-text">{connected ? "Connected" : "Reconnecting..."}</span>
-        </div>
-      </div>
-    </header>
-  );
+export const Header: React.FC<HeaderProps> = ({ connected, frame, state, title }) => {
+  const model = frame?.model || state?.model || "oracle";
+  const preset = frame?.preset || state?.preset || "fovea_default";
+  const sequence = frame?.seq || state?.seq || "08";
+  const rings = frame?.rings ?? [];
+  const gridSummary = rings.length
+    ? `${rings.length} resolution zones · ${rings.map((ring) => `${formatCellSize(ring.cell_mm)}`).join(" / ")} · ${formatRange(rings.at(-1)?.r_max_mm ?? 0)}`
+    : "Resolution geometry will appear with the first live frame";
+  return <header className="console-header">
+    <div>
+      <p className="header-kicker">SemanticKITTI · Sequence {sequence}</p>
+      <h1>{title}</h1>
+      <p className="header-description">Adaptive 2.5D mapping · {gridSummary}</p>
+    </div>
+    <div className="header-statuses">
+      <span className={`live-status ${connected ? "online" : "offline"}`}><i />{connected ? "LIVE" : "RECONNECTING"}</span>
+      <span className="header-select">{model === "oracle" ? "Ground Truth" : model.toUpperCase()} <b>⌄</b></span>
+      <span className="header-select">{preset.replaceAll("_", " ")} <b>⌄</b></span>
+    </div>
+  </header>;
 };
+
+const formatCellSize = (cellMm: number) => cellMm % 10 === 0 ? `${cellMm / 10} cm` : `${cellMm} mm`;
+const formatRange = (rangeMm: number) => `${rangeMm / 1000} m range`;

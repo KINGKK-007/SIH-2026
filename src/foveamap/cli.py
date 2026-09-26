@@ -92,6 +92,16 @@ def build_parser() -> argparse.ArgumentParser:
     p_stats.add_argument("--json", default="results/data_stats.json")
     p_stats.add_argument("--table", default="results/tables/data_stats.md")
 
+    p_evaluate = sub.add_parser("evaluate", help="evaluate cached semantic predictions on sequence 08")
+    _add_common(p_evaluate)
+    p_evaluate.add_argument("--model", default="lsk3dnet")
+    p_evaluate.add_argument("--cache-root", default="data/cache/pred")
+    p_evaluate.add_argument("--start", type=int, default=1271)
+    p_evaluate.add_argument("--stop", type=int, default=4071)
+    p_evaluate.add_argument("--stride", type=int, default=1)
+    p_evaluate.add_argument("--json", default="results/semantic_evaluation_sequence08.json")
+    p_evaluate.add_argument("--table", default="results/tables/semantic_evaluation_sequence08.md")
+
     p_serve = sub.add_parser("serve", help="launch dashboard server with Socket.IO streaming (T13.2)")
     _add_common(p_serve)
     p_serve.add_argument("--host", default="127.0.0.1", help="bind host")
@@ -136,6 +146,30 @@ def _cmd_stats(args: argparse.Namespace) -> int:
     table.write_text(stats_table_md(stats), encoding="utf-8")
     print(stats_table_md(stats))
     print(f"wrote {_write_json(args.json, stats)} and {table}")
+    return 0
+
+
+def _cmd_evaluate(args: argparse.Namespace) -> int:
+    """Evaluate cached model predictions without loading CUDA or the live network."""
+    from foveamap.eval.semantic_eval import evaluate_cached_sequence, semantic_report_md
+
+    report = evaluate_cached_sequence(
+        data_root=args.data_root,
+        cache_root=args.cache_root,
+        model_name=args.model,
+        sequence=args.sequence,
+        start=args.start,
+        stop=args.stop,
+        stride=args.stride,
+    )
+    table = Path(args.table)
+    table.parent.mkdir(parents=True, exist_ok=True)
+    rendered = semantic_report_md(report)
+    table.write_text(rendered, encoding="utf-8")
+    print(rendered)
+    print(f"wrote {_write_json(args.json, report)} and {table}")
+    if report["provenance_status"] != "present":
+        print("warning: cache meta.json is missing; results are not submission-ready", file=sys.stderr)
     return 0
 
 
@@ -260,6 +294,7 @@ def _cmd_memory(args: argparse.Namespace) -> int:
 def _cmd_serve(args: argparse.Namespace) -> int:
     """T13.2: launch FastAPI + Socket.IO dashboard backend server."""
     import uvicorn
+
     from foveamap.config import load_config
     from foveamap.grid.presets import load_preset
     from foveamap.io.sequence import Sequence as KittiSequence
@@ -299,6 +334,7 @@ COMMANDS = {
     "memory": _cmd_memory,
     "align": _cmd_align,
     "stats": _cmd_stats,
+    "evaluate": _cmd_evaluate,
     "serve": _cmd_serve,
 }
 

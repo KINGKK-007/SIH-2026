@@ -192,6 +192,23 @@ class LSK3DNetConfig(_Strict):
     )
     vram_budget_gb: float = Field(gt=0, description="target GPU VRAM; drives batch-of-one, cache-clearing")
     empty_cache_every_scan: bool = True
+    coverage_profile: Literal["native", "extended_100m"] = "extended_100m"
+    extended_min_volume_space: tuple[float, float, float] = (-100.0, -100.0, -4.0)
+    extended_max_volume_space: tuple[float, float, float] = (100.0, 100.0, 2.0)
+    extended_spatial_shape: tuple[int, int, int] = (4000, 4000, 120)
+
+    @model_validator(mode="after")
+    def _valid_extended_geometry(self) -> LSK3DNetConfig:
+        if any(
+            lo >= hi
+            for lo, hi in zip(
+                self.extended_min_volume_space, self.extended_max_volume_space, strict=True
+            )
+        ):
+            raise ValueError("extended_min_volume_space must be below extended_max_volume_space on every axis")
+        if any(size <= 0 for size in self.extended_spatial_shape):
+            raise ValueError("extended_spatial_shape entries must be positive")
+        return self
 
 
 class ModelConfig(_Strict):
