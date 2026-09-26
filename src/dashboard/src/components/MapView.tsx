@@ -1,4 +1,5 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { IsometricMap } from "./IsometricMap";
 import type { ActiveLayer, AnalysisMode, FrameUpdatePayload } from "../types";
 
 interface MapViewProps {
@@ -9,6 +10,9 @@ interface MapViewProps {
   onRingSelect: (ring: number | null) => void;
   selectedObject: number | null;
   onObjectSelect: (id: number | null) => void;
+  onProbe?: (xM: number, yM: number) => void;
+  probeMode?: boolean;
+  probePoint?: { x: number; y: number } | null;
 }
 
 // Bit flags matching Python grid/layers.py
@@ -33,13 +37,21 @@ const OBJECT_COLORS: Record<number, [number, number, number, number]> = {
   4: [16, 164, 203, 0.98],
 };
 
-// Per-ring boundary colors (darker for light bg)
+// Per-ring boundaries remain legible over the dark map.
 const RING_COLORS = [
-  "rgba(8, 145, 160, 0.9)",   // ring 0 — teal
-  "rgba(30, 100, 200, 0.8)",  // ring 1 — blue
-  "rgba(200, 130, 0, 0.75)",  // ring 2 — amber
-  "rgba(190, 50, 50, 0.70)",  // ring 3 — red
+  "rgba(245, 189, 91, 0.95)",
+  "rgba(116, 205, 216, 0.90)",
+  "rgba(159, 167, 229, 0.90)",
+  "rgba(174, 153, 186, 0.88)",
 ];
+
+interface HoverInfo {
+  xM: number;
+  yM: number;
+  zM: number | null;
+  ring: number | null;
+  occupied: boolean | null;
+}
 
 function jetColor(t: number): [number, number, number] {
   // Jet colormap: blue → cyan → green → yellow → red
@@ -50,6 +62,58 @@ function jetColor(t: number): [number, number, number] {
   return [r, g, b];
 }
 
+function cellColor(ring: FrameUpdatePayload["rings"][number], i: number, layer: ActiveLayer, mode: AnalysisMode): [number, number, number, number] | null {
+  const flags = ring.flags[i] || 0;
+  if (layer === "class") {
+    if (flags & FLAG_LOW_CLEAR) return [177, 99, 239, 0.98];
+    if (flags & FLAG_KERB) return [255, 185, 57, 0.98];
+    return (mode === "terrain" ? TERRAIN_COLORS : OBJECT_COLORS)[ring.cls[i] || 0] ?? TERRAIN_COLORS[0];
+  }
+  if (layer === "height") {
+    const ground = ring.ground_z[i], top = ring.top_z[i];
+    const z = top !== -32768 ? top : ground;
+    if (z === -32768) return null;
+    return [...jetColor((z / 1000 + 2.5) / 6.5), ground !== -32768 ? 0.96 : 0.55];
+  }
+  if (layer === "traversability") {
+    if (flags & FLAG_LOW_CLEAR) return [177, 99, 239, 0.96];
+    if (flags & FLAG_KERB) return [255, 185, 57, 0.96];
+    if (!(flags & FLAG_HAS_GROUND)) return [109, 122, 143, 0.55];
+    return flags & FLAG_TRAVERSABLE ? [55, 196, 121, 0.94] : [231, 70, 79, 0.94];
+  }
+  if (layer === "moving") {
+    const moving = (ring.moving_frac[i] || 0) / 255;
+    return moving > 0.1 ? [238, 74, 84, 0.55 + moving * 0.45] : [69, 144, 221, 0.7];
+  }
+  return [45, 201, 154, 0.2 + (ring.conf[i] || 0) / 255 * 0.8];
+}
+
+function buildTextures(frame: FrameUpdatePayload | null, layer: ActiveLayer, mode: AnalysisMode): Map<number, HTMLCanvasElement> {
+  const textures = new Map<number, HTMLCanvasElement>();
+  if (!frame) return textures;
+  for (const ring of frame.rings) {
+    const side = ring.side;
+    const canvas = document.createElement("canvas");
+    canvas.width = side;
+    canvas.height = side;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) continue;
+    const image = ctx.createImageData(side, side);
+    for (let i = 0; i < ring.ix.length; i++) {
+      const color = cellColor(ring, i, layer, mode);
+      if (!color) continue;
+      const pixel = ((side - 1 - ring.ix[i]) * side + side - 1 - ring.iy[i]) * 4;
+      image.data[pixel] = color[0];
+      image.data[pixel + 1] = color[1];
+      image.data[pixel + 2] = color[2];
+      image.data[pixel + 3] = Math.round(color[3] * 255);
+    }
+    ctx.putImageData(image, 0, 0);
+    textures.set(ring.ring_idx, canvas);
+  }
+  return textures;
+}
+
 export const MapView: React.FC<MapViewProps> = ({
   frame,
   activeLayer,
@@ -58,6 +122,9 @@ export const MapView: React.FC<MapViewProps> = ({
   onRingSelect,
   selectedObject,
   onObjectSelect,
+  onProbe,
+  probeMode = false,
+  probePoint = null,
 }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -65,13 +132,18 @@ export const MapView: React.FC<MapViewProps> = ({
   const [offset, setOffset] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
   const [isDragging, setIsDragging] = useState<boolean>(false);
   const [dragStart, setDragStart] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
-  const [hoverInfo, setHoverInfo] = useState<string | null>(null);
+  const pressRef = useRef({ x: 0, y: 0, moved: false });
+  const [hoverInfo, setHoverInfo] = useState<HoverInfo | null>(null);
   const [layersOpen, setLayersOpen] = useState(false);
   const [visibility, setVisibility] = useState({ rings: true, objects: true, vehicle: true });
+  const [perspective, setPerspective] = useState<"top" | "iso">("top");
+  const textures = useMemo(() => buildTextures(frame, activeLayer, analysisMode), [frame, activeLayer, analysisMode]);
+  const [size, setSize] = useState({ width: 640, height: 520 });
+  const hoverIndex = useMemo(() => new Map((frame?.rings ?? []).map((ring) => [ring.ring_idx, new Map(ring.ix.map((ix, i) => [ix * ring.side + ring.iy[i], i]))])), [frame]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
-    if (!canvas) return;
+    if (!canvas || perspective === "iso") return;
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
@@ -80,8 +152,7 @@ export const MapView: React.FC<MapViewProps> = ({
     const centerX = width / 2 + offset.x;
     const centerY = height / 2 + offset.y;
 
-    // White plotting surface; projection and backend coordinates are unchanged.
-    ctx.fillStyle = "#ffffff";
+    ctx.fillStyle = "#0c1017";
     ctx.fillRect(0, 0, width, height);
 
     const maxExtentMm = frame?.rings?.length
@@ -91,33 +162,33 @@ export const MapView: React.FC<MapViewProps> = ({
     const baseScale = (Math.min(width, height) * 0.44) / maxExtentMm;
     const scale = baseScale * zoom;
 
-    // Light grid circles every 20m
+    // Distance rings every 20m.
     for (let r = 20000; r <= maxExtentMm; r += 20000) {
       const px = r * scale;
-      ctx.strokeStyle = "rgba(60,80,100,0.10)";
+      ctx.strokeStyle = "rgba(99,166,191,0.17)";
       ctx.lineWidth = 1;
       ctx.beginPath();
       ctx.arc(centerX, centerY, px, 0, 2 * Math.PI);
       ctx.stroke();
-      ctx.fillStyle = "#718096";
+      ctx.fillStyle = "#7895a4";
       ctx.font = "10px monospace";
       ctx.fillText(`${r / 1000}m`, centerX + 4, centerY - px + 12);
     }
 
     // Axis lines
-    ctx.strokeStyle = "rgba(60,80,100,0.15)";
+    ctx.strokeStyle = "rgba(99,166,191,0.18)";
     ctx.lineWidth = 1;
     ctx.beginPath();
     ctx.moveTo(centerX, 0); ctx.lineTo(centerX, height);
     ctx.moveTo(0, centerY); ctx.lineTo(width, centerY);
     ctx.stroke();
 
-    ctx.fillStyle = "#64748b";
+    ctx.fillStyle = "#9db2bc";
     ctx.font = "11px monospace";
     ctx.fillText("↑ FWD", centerX + 5, Math.max(15, centerY - maxExtentMm * scale - 4));
 
     if (!frame || !frame.rings || frame.rings.length === 0) {
-      ctx.fillStyle = "#64748b";
+      ctx.fillStyle = "#9db2bc";
       ctx.font = "14px sans-serif";
       ctx.textAlign = "center";
       ctx.fillText("Waiting for frame data...", width / 2, height / 2 + 40);
@@ -130,64 +201,12 @@ export const MapView: React.FC<MapViewProps> = ({
 
     for (const ring of sortedRings) {
       const cellMm = ring.cell_mm;
-      const cellPx = Math.max(1.0, cellMm * scale);
-      // Leave a small gap between cells for point-cloud feel
-      const drawPx = Math.max(1.0, cellPx * 0.88);
-      const gapOff = (cellPx - drawPx) / 2;
       const rMax = ring.r_max_mm;
-      const nCells = ring.ix.length;
-
-      // Cells
-      for (let i = 0; i < nCells; i++) {
-        const ix = ring.ix[i];
-        const iy = ring.iy[i];
-        const flags = ring.flags[i] || 0;
-        const cellXmm = -rMax + ix * cellMm;
-        const cellYmm = -rMax + iy * cellMm;
-        const screenX = centerX - (cellYmm + cellMm / 2) * scale;
-        const screenY = centerY - (cellXmm + cellMm / 2) * scale;
-
-        let r = 170, g = 170, b = 175, a = 0.35;
-
-        if (activeLayer === "class") {
-          const isKerb   = (flags & FLAG_KERB) !== 0;
-          const isLowClr = (flags & FLAG_LOW_CLEAR) !== 0;
-
-          if (isLowClr) {
-            [r, g, b, a] = [150, 40, 200, 0.92];  // SemanticKITTI motorcyclist violet
-          } else if (isKerb) {
-            [r, g, b, a] = [250, 170, 30, 0.95];  // SemanticKITTI traffic-sign amber
-          } else {
-            const clsId = ring.cls[i] || 0;
-            const palette = analysisMode === "terrain" ? TERRAIN_COLORS : OBJECT_COLORS;
-            [r, g, b, a] = palette[clsId] ?? palette[0];
-          }
-        } else if (activeLayer === "height") {
-          const gz = ring.ground_z[i];
-          const tz = ring.top_z[i];
-          const z = tz !== -32768 ? tz : gz;
-          if (z === -32768) continue;
-          // -2.5m → 0 → +4m mapped to jet 0→1
-          const t = Math.max(0, Math.min(1, (z / 1000 + 2.5) / 6.5));
-          [r, g, b] = jetColor(t);
-          a = gz !== -32768 ? 0.95 : 0.5;
-        } else if (activeLayer === "traversability") {
-          const isTrav = (flags & FLAG_TRAVERSABLE) !== 0;
-          const hasGnd = (flags & FLAG_HAS_GROUND) !== 0;
-          if (!hasGnd)            { [r, g, b, a] = [120, 130, 145, 0.5]; }
-          else if (isTrav)        { [r, g, b, a] = [46, 160, 80,  0.90]; }
-          else                    { [r, g, b, a] = [200, 50, 50,  0.90]; }
-        } else if (activeLayer === "moving") {
-          const frac = (ring.moving_frac[i] || 0) / 255.0;
-          if (frac > 0.1) { [r, g, b, a] = [200, 30, 30, 0.5 + frac * 0.5]; }
-          else             { [r, g, b, a] = [60, 120, 200, 0.65]; }
-        } else {
-          const conf = (ring.conf[i] || 0) / 255.0;
-          [r, g, b, a] = [30, 130, 80, 0.2 + conf * 0.8];
-        }
-
-        ctx.fillStyle = `rgba(${r},${g},${b},${a})`;
-        ctx.fillRect(screenX + gapOff, screenY + gapOff, drawPx, drawPx);
+      const texture = textures.get(ring.ring_idx);
+      if (texture) {
+        ctx.imageSmoothingEnabled = false;
+        const extentPx = rMax * scale;
+        ctx.drawImage(texture, centerX - extentPx, centerY - extentPx, extentPx * 2, extentPx * 2);
       }
 
       if (visibility.rings) {
@@ -204,14 +223,14 @@ export const MapView: React.FC<MapViewProps> = ({
         const lw = ctx.measureText(resLabel).width;
         const bx = centerX - boundaryPx + 5;
         const by = centerY - boundaryPx + 5;
-        ctx.fillStyle = "rgba(255,255,255,0.94)";
+        ctx.fillStyle = "rgba(12,16,23,0.94)";
         ctx.fillRect(bx, by, lw + 8, 19);
-        ctx.fillStyle = borderColor.replace(/[\d.]+\)$/, "1)");
+        ctx.fillStyle = borderColor;
         ctx.fillText(resLabel, bx + 4, by + 14);
       }
     }
 
-    // Object bounding boxes — black rectangle outlines (SemanticKITTI 3D box style)
+    // Boxes use measured motion fields only; proximity is not a collision prediction.
     // Skip degenerate boxes from clustering artifacts (> 15m = merged cluster, not a single vehicle)
     const MAX_BOX_M = 15.0;
     if (visibility.objects && analysisMode === "objects" && frame.objects && frame.objects.length > 0) {
@@ -231,37 +250,41 @@ export const MapView: React.FC<MapViewProps> = ({
         ctx.translate(screenX, screenY);
         ctx.rotate(-obj.yaw);
 
-        // Fill: red tint for moving, pale blue for static
+        const rangeM = Math.hypot(ox, oy);
+        const nearby = rangeM < 8 && (obj.moving || obj.safety_critical);
+
         if (obj.moving) {
-          ctx.fillStyle = "rgba(220, 20, 60, 0.15)";
+          ctx.fillStyle = "rgba(231, 70, 79, 0.18)";
         } else {
-          ctx.fillStyle = "rgba(30, 60, 140, 0.10)";
+          ctx.fillStyle = "rgba(66, 170, 216, 0.12)";
         }
         ctx.fillRect(-wPx / 2, -lPx / 2, wPx, lPx);
 
-        // Black rectangle outline — solid black like SemanticKITTI 3D boxes
-        ctx.strokeStyle = selectedObject === obj.id ? "#23c7d9" : "#05080b";
+        ctx.strokeStyle = selectedObject === obj.id ? "#ffce7c" : nearby ? "#ff696d" : obj.moving ? "#f3a35f" : "#60c8e7";
         ctx.lineWidth = selectedObject === obj.id ? 3 : 2;
         ctx.strokeRect(-wPx / 2, -lPx / 2, wPx, lPx);
 
-        // Forward direction tick (white over black)
-        ctx.strokeStyle = obj.moving ? "rgba(220,20,60,0.9)" : "rgba(30,60,140,0.8)";
+        // Heading from the tracked box yaw; speed is shown only when supplied.
+        ctx.strokeStyle = obj.moving ? "#ff696d" : "#60c8e7";
         ctx.lineWidth = 2;
         ctx.beginPath();
         ctx.moveTo(0, -lPx / 2);
-        ctx.lineTo(0, -lPx / 2 - 8);
+        ctx.lineTo(0, -lPx / 2 - 12);
+        ctx.moveTo(-4, -lPx / 2 - 8);
+        ctx.lineTo(0, -lPx / 2 - 12);
+        ctx.lineTo(4, -lPx / 2 - 8);
         ctx.stroke();
         ctx.restore();
 
         // Label pill
-        const labelText = obj.moving ? `▶ ${obj.cls_name}` : obj.cls_name;
+        const speedText = obj.speed_mps == null ? "" : ` · ${(obj.speed_mps * 3.6).toFixed(0)} km/h`;
+        const labelText = `${obj.cls_name}${speedText}${nearby ? " · NEARBY" : ""}`;
         ctx.font = "bold 11px monospace";
         ctx.textAlign = "center";
         const tw = ctx.measureText(labelText).width;
         const lx = screenX - tw / 2 - 4;
         const ly = screenY - lPx / 2 - 19;
-        // Pill background: black (matches box outline)
-        ctx.fillStyle = obj.moving ? "rgba(220,20,60,0.90)" : "rgba(0,0,0,0.80)";
+        ctx.fillStyle = nearby ? "#96394a" : obj.moving ? "#704936" : "#16465e";
         ctx.beginPath();
         if (typeof ctx.roundRect === "function") {
           ctx.roundRect(lx, ly, tw + 8, 17, 3);
@@ -286,77 +309,106 @@ export const MapView: React.FC<MapViewProps> = ({
       ctx.strokeRect(centerX - vehW / 2, centerY - vehL / 2, vehW, vehL);
     }
 
-  }, [frame, activeLayer, analysisMode, visibility, zoom, offset, selectedRing, selectedObject]);
+    if (probePoint) {
+      const px = centerX - probePoint.y * 1000 * scale;
+      const py = centerY - probePoint.x * 1000 * scale;
+      ctx.strokeStyle = "#ffcc73";
+      ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.arc(px, py, 10, 0, Math.PI * 2); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(px - 16, py); ctx.lineTo(px + 16, py); ctx.moveTo(px, py - 16); ctx.lineTo(px, py + 16); ctx.stroke();
+    }
+
+  }, [frame, activeLayer, analysisMode, visibility, zoom, offset, selectedRing, selectedObject, textures, perspective, probePoint]);
 
   useEffect(() => {
     const container = containerRef.current;
     const canvas = canvasRef.current;
-    if (!container || !canvas) return;
+    if (!container) return;
     const resize = () => {
       const rect = container.getBoundingClientRect();
       const width = Math.max(320, Math.round(rect.width));
       const height = Math.max(360, Math.round(rect.height));
-      if (canvas.width !== width || canvas.height !== height) {
+      if (canvas && (canvas.width !== width || canvas.height !== height)) {
         canvas.width = width;
         canvas.height = height;
         setOffset((current) => ({ ...current }));
       }
+      setSize((current) => current.width === width && current.height === height ? current : { width, height });
     };
     const observer = new ResizeObserver(resize);
     observer.observe(container);
     resize();
     return () => observer.disconnect();
-  }, []);
+  }, [perspective]);
 
   // Interactions
   const handleMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    pressRef.current = { x: e.clientX, y: e.clientY, moved: false };
     setIsDragging(true);
     setDragStart({ x: e.clientX - offset.x, y: e.clientY - offset.y });
   };
 
   const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
-    if (isDragging) setOffset({ x: e.clientX - dragStart.x, y: e.clientY - dragStart.y });
+    if (isDragging) {
+      if (Math.hypot(e.clientX - pressRef.current.x, e.clientY - pressRef.current.y) > 4) pressRef.current.moved = true;
+      setOffset({ x: e.clientX - dragStart.x, y: e.clientY - dragStart.y });
+    }
 
-    const canvas = canvasRef.current;
-    if (!canvas) return;
+    const canvas = e.currentTarget;
     const rect = canvas.getBoundingClientRect();
-    const mx = e.clientX - rect.left;
-    const my = e.clientY - rect.top;
+    const mx = (e.clientX - rect.left) * canvas.width / rect.width;
+    const my = (e.clientY - rect.top) * canvas.height / rect.height;
     const w = canvas.width, h = canvas.height;
     const cx = w / 2 + offset.x, cy = h / 2 + offset.y;
     const maxExtentMm = frame?.rings?.length ? Math.max(...frame.rings.map((r) => r.r_max_mm)) : 100000;
     const scale = (Math.min(w, h) * 0.44 / maxExtentMm) * zoom;
-    const yMm = -(mx - cx) / scale;
-    const xMm = -(my - cy) / scale;
-    const distM = Math.sqrt(xMm * xMm + yMm * yMm) / 1000;
+    const u = (mx - cx) / scale, v = (my - cy) / scale;
+    const xMm = perspective === "top" ? -v : ((u / .7) + (-v / .35)) / 2;
+    const yMm = perspective === "top" ? -u : ((-v / .35) - (u / .7)) / 2;
 
-    let ringLabel = "Out of bounds";
+    let ringIndex: number | null = null;
+    let zM: number | null = null;
+    let occupied: boolean | null = null;
     if (frame?.rings) {
       const asc = [...frame.rings].sort((a, b) => a.ring_idx - b.ring_idx);
       for (const r of asc) {
-        if (Math.abs(xMm) <= r.r_max_mm && Math.abs(yMm) <= r.r_max_mm) {
-          ringLabel = `Ring ${r.ring_idx}  @ ${r.cell_mm / 10} cm/cell`;
+        if (Math.abs(xMm) < r.r_max_mm && Math.abs(yMm) < r.r_max_mm) {
+          ringIndex = r.ring_idx;
+          const ix = Math.floor((xMm + r.r_max_mm) / r.cell_mm);
+          const iy = Math.floor((yMm + r.r_max_mm) / r.cell_mm);
+          const cell = hoverIndex.get(r.ring_idx)?.get(ix * r.side + iy) ?? -1;
+          occupied = cell >= 0;
+          if (cell >= 0) {
+            const z = r.ground_z[cell] !== -32768 ? r.ground_z[cell] : r.top_z[cell];
+            zM = z !== -32768 ? z / 1000 : null;
+          }
           break;
         }
       }
     }
-    setHoverInfo(`X ${(xMm/1000).toFixed(1)}m  Y ${(yMm/1000).toFixed(1)}m  |  Dist ${distM.toFixed(1)}m  |  ${ringLabel}`);
+    setHoverInfo({ xM: xMm / 1000, yM: yMm / 1000, zM, ring: ringIndex, occupied });
   };
 
   const handleMouseUp = () => setIsDragging(false);
 
   const handleMapClick = (e: React.MouseEvent<HTMLCanvasElement>) => {
-    if (Math.abs(e.clientX - dragStart.x - offset.x) > 4 || Math.abs(e.clientY - dragStart.y - offset.y) > 4) return;
-    const canvas = canvasRef.current;
-    if (!canvas || !frame?.rings.length) return;
+    if (pressRef.current.moved) return;
+    const canvas = e.currentTarget;
+    if (!frame?.rings.length) return;
     const rect = canvas.getBoundingClientRect();
     const mx = (e.clientX - rect.left) * canvas.width / rect.width;
     const my = (e.clientY - rect.top) * canvas.height / rect.height;
     const cx = canvas.width / 2 + offset.x, cy = canvas.height / 2 + offset.y;
     const maxExtentMm = Math.max(...frame.rings.map((ring) => ring.r_max_mm));
     const scale = (Math.min(canvas.width, canvas.height) * 0.44 / maxExtentMm) * zoom;
-    const xM = -(my - cy) / scale / 1000;
-    const yM = -(mx - cx) / scale / 1000;
+    const u = (mx - cx) / scale, v = (my - cy) / scale;
+    const xM = (perspective === "top" ? -v : ((u / .7) + (-v / .35)) / 2) / 1000;
+    const yM = (perspective === "top" ? -u : ((-v / .35) - (u / .7)) / 2) / 1000;
+
+    if (probeMode && onProbe) {
+      onProbe(Number(xM.toFixed(2)), Number(yM.toFixed(2)));
+      return;
+    }
 
     if (analysisMode === "objects" && visibility.objects) {
       const nearest = frame.objects
@@ -373,16 +425,21 @@ export const MapView: React.FC<MapViewProps> = ({
     onRingSelect(ring?.ring_idx === selectedRing ? null : ring?.ring_idx ?? null);
   };
 
+  const zoomByWheel = useCallback((deltaY: number) => {
+    setZoom((z) => Math.max(0.3, Math.min(8.0, z * (deltaY < 0 ? 1.15 : 0.87))));
+  }, []);
+  const fallbackToTop = useCallback(() => setPerspective("top"), []);
+
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const onWheel = (e: WheelEvent) => {
       e.preventDefault();
-      setZoom((z) => Math.max(0.3, Math.min(8.0, z * (e.deltaY < 0 ? 1.15 : 0.87))));
+      zoomByWheel(e.deltaY);
     };
     canvas.addEventListener("wheel", onWheel, { passive: false });
     return () => canvas.removeEventListener("wheel", onWheel);
-  }, []);
+  }, [perspective, zoomByWheel]);
 
   return (
     <div className="map-view-wrapper">
@@ -395,26 +452,35 @@ export const MapView: React.FC<MapViewProps> = ({
       </div>}
 
       <div className="canvas-container" ref={containerRef}>
-        <canvas
+        {perspective === "top" ? <canvas
           ref={canvasRef}
-          style={{ cursor: isDragging ? "grabbing" : "crosshair" }}
+          style={{ cursor: isDragging ? "grabbing" : probeMode ? "crosshair" : "grab" }}
           onMouseDown={handleMouseDown}
           onMouseMove={handleMouseMove}
           onMouseUp={handleMouseUp}
           onClick={handleMapClick}
-          onMouseLeave={handleMouseUp}
-        />
-        {hoverInfo && <div className="map-cursor-readout map-cursor-light">{hoverInfo}</div>}
+          onMouseLeave={() => { handleMouseUp(); setHoverInfo(null); }}
+        /> : <IsometricMap frame={frame} layer={activeLayer} mode={analysisMode} width={size.width} height={size.height} zoom={zoom} offset={offset} showRings={visibility.rings} showObjects={visibility.objects} showVehicle={visibility.vehicle} selectedRing={selectedRing} selectedObject={selectedObject} probePoint={probePoint} onZoom={zoomByWheel} onUnavailable={fallbackToTop} colorFor={cellColor} onMouseDown={handleMouseDown} onMouseMove={handleMouseMove} onMouseUp={handleMouseUp} onMouseLeave={() => { handleMouseUp(); setHoverInfo(null); }} onClick={handleMapClick} />}
       </div>
 
       <div className="map-footer-controls">
-        <span className="map-help">Top view · drag to pan · scroll to zoom</span>
+        <span className="map-help">{perspective === "top" ? "Top view" : "2.5D elevation relief"} · drag to pan · scroll to zoom</span>
         <div className="zoom-controls">
+          <button className={`ctrl-btn reset-btn ${perspective === "top" ? "control-active" : ""}`} onClick={() => setPerspective("top")}>Top-down 2D</button>
+          <button className={`ctrl-btn reset-btn ${perspective === "iso" ? "control-active" : ""}`} onClick={() => setPerspective("iso")}>Isometric 2.5D</button>
           <button className="ctrl-btn" onClick={() => setZoom((z) => Math.min(8.0, z * 1.25))}>+</button>
           <button className="ctrl-btn" onClick={() => setZoom((z) => Math.max(0.3, z / 1.25))}>−</button>
           <button className="ctrl-btn reset-btn" onClick={() => { setZoom(2.0); setOffset({ x: 0, y: 0 }); }}>Reset</button>
           <button className={`ctrl-btn reset-btn ${layersOpen ? "control-active" : ""}`} onClick={() => setLayersOpen((value) => !value)}>Layers</button>
         </div>
+      </div>
+      <div className="frame-status-bar" aria-live="off">
+        <span><b>FRAME</b>{frame ? String(frame.frame_idx).padStart(6, "0") : "—"}</span>
+        <span><b>X</b>{hoverInfo ? `${hoverInfo.xM.toFixed(2)} m` : "—"}</span>
+        <span><b>Y</b>{hoverInfo ? `${hoverInfo.yM.toFixed(2)} m` : "—"}</span>
+        <span><b>Z</b>{hoverInfo?.zM != null ? `${hoverInfo.zM.toFixed(2)} m` : "—"}</span>
+        <span><b>CELL</b>{hoverInfo?.ring != null ? `R${hoverInfo.ring}` : "—"}</span>
+        <span>{hoverInfo?.occupied == null ? "Hover map to inspect" : hoverInfo.occupied ? "Occupied" : "No observation"}</span>
       </div>
     </div>
   );

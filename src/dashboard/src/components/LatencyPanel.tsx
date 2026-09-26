@@ -17,14 +17,14 @@ export const LatencyPanel: React.FC<LatencyPanelProps> = ({ timings, counters })
   }
 
   const stages = [
-    { key: "io_ms", label: "I/O scan load", color: "#6a8496" },
-    { key: "model_ms", label: "Model / oracle", color: "#a6baca" },
-    { key: "label_ms", label: "Label mapping", color: "#758695" },
-    { key: "motion_ms", label: "Motion / objects", color: "#9fb1bd" },
-    { key: "grid_ms", label: "Grid rasterise", color: "#65aab3" },
-    { key: "finalize_ms", label: "Finalize layers", color: "#8ba3a8" },
-    { key: "derived_ms", label: "Derived layers", color: "#b4c6cc" },
-    { key: "memory_ms", label: "Memory report", color: "#57717d" },
+    { key: "io_ms", label: "I/O scan load", color: "#6f7471" },
+    { key: "model_ms", label: "Model / oracle", color: "#a88e63" },
+    { key: "label_ms", label: "Label mapping", color: "#827b69" },
+    { key: "motion_ms", label: "Motion / objects", color: "#a75f59" },
+    { key: "grid_ms", label: "Grid rasterise", color: "#c69a52" },
+    { key: "finalize_ms", label: "Finalize layers", color: "#9a9d98" },
+    { key: "derived_ms", label: "Derived layers", color: "#748e73" },
+    { key: "memory_ms", label: "Memory report", color: "#6f6566" },
   ];
 
   const totalMs: number = Object.values(timings).reduce<number>(

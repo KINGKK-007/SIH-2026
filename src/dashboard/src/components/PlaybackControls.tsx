@@ -9,7 +9,7 @@ interface PlaybackControlsProps {
 
 export const PlaybackControls: React.FC<PlaybackControlsProps> = ({ state, currentFrameIdx }) => {
   const isPlaying = state?.is_playing ?? false;
-  const totalFrames = state?.total_frames ?? 4071;
+  const totalFrames = state?.total_frames ?? 0;
   const currentSpeed = state?.speed ?? 1.0;
 
   // Local slider position during drag — syncs with server frame_idx when not dragging
@@ -54,15 +54,16 @@ export const PlaybackControls: React.FC<PlaybackControlsProps> = ({ state, curre
       {/* Row 1: transport controls + speed */}
       <div className="playback-row-top">
         <div className="playback-buttons">
-          <button className="play-btn step-btn" onClick={() => handleStep(-1)} title="Step Backward">⏮</button>
+          <button className="play-btn step-btn" onClick={() => handleStep(-1)} title="Step Backward" disabled={!state}>⏮</button>
           <button
             className={`play-btn primary-play-btn ${isPlaying ? "playing" : ""}`}
             onClick={handlePlayPause}
             title={isPlaying ? "Pause" : "Play"}
+            disabled={!state}
           >
             {isPlaying ? "⏸" : "▶"}
           </button>
-          <button className="play-btn step-btn" onClick={() => handleStep(1)} title="Step Forward">⏭</button>
+          <button className="play-btn step-btn" onClick={() => handleStep(1)} title="Step Forward" disabled={!state}>⏭</button>
         </div>
 
         <div className="frame-counter" style={{ flex: 1, justifyContent: "center" }}>
@@ -77,6 +78,7 @@ export const PlaybackControls: React.FC<PlaybackControlsProps> = ({ state, curre
               key={s}
               className={`speed-btn ${Math.abs(currentSpeed - s) < 0.05 ? "speed-active" : ""}`}
               onClick={() => handleSpeed(s)}
+              disabled={!state}
             >
               {s}x
             </button>
@@ -96,6 +98,7 @@ export const PlaybackControls: React.FC<PlaybackControlsProps> = ({ state, curre
         onTouchEnd={handleSeekCommit}
         onKeyUp={handleSeekCommit}
         className="scrub-slider scrub-full"
+        disabled={!state || totalFrames < 2}
       />
     </div>
   );
