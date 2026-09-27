@@ -20,12 +20,11 @@ interface AppSidebarProps {
   view: View;
   collapsed: boolean;
   connected: boolean;
-  sequence: string;
   onSelect: (view: View) => void;
   onToggle: () => void;
 }
 
-export function AppSidebar({ view, collapsed, connected, sequence, onSelect, onToggle }: AppSidebarProps) {
+export function AppSidebar({ view, collapsed, connected, onSelect, onToggle }: AppSidebarProps) {
   return <aside className="sidebar">
     <div className="sidebar-brand">
       <button className="brand" onClick={() => onSelect("overview")} title="FoveaMap overview" aria-label="FoveaMap overview">
@@ -52,7 +51,7 @@ export function AppSidebar({ view, collapsed, connected, sequence, onSelect, onT
     </nav>
     <div className="sidebar-bottom">
       <div className="sidebar-system-icon"><Layers3 size={16} strokeWidth={1.75} /></div>
-      {!collapsed && <div className="sidebar-system-copy"><strong>Sequence {sequence}</strong><span><i className={connected ? "connected" : ""} />{connected ? "Connected" : "Reconnecting"}</span></div>}
+      {!collapsed && <div className="sidebar-system-copy"><strong>LiDAR stream</strong><span><i className={connected ? "connected" : ""} />{connected ? "Connected" : "Reconnecting"}</span></div>}
     </div>
   </aside>;
 }

@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import asyncio
+import gzip
 from pathlib import Path
 import numpy as np
+import orjson
 import pytest
 from starlette.testclient import TestClient
 
@@ -98,7 +100,7 @@ def test_interactive_previews(synthetic_root: Path) -> None:
 
 
 @pytest.mark.anyio
-async def test_playback_loop_and_emit(synthetic_root: Path) -> None:
+async def test_playback_loop_and_emit(synthetic_root: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     cfgs = load_config()
     preset = load_preset("fovea_default", cfgs.grid)
     runner = PipelineRunner(mode="oracle", model=OracleModel(), preset=preset, cfgs=cfgs)
@@ -115,6 +117,20 @@ async def test_playback_loop_and_emit(synthetic_root: Path) -> None:
     assert "timings_ms" in payload
     assert "memory" in payload
     assert "rings" in payload
+
+    # A reconnecting viewer receives the cached scan, not another runner pass.
+    sent: list[tuple[str, bytes, str]] = []
+    async def capture(event: str, data: bytes, sid: str) -> None:
+        sent.append((event, data, sid))
+    with monkeypatch.context() as patch:
+        patch.setattr(mgr, "_send_frame_packet", capture)
+        patch.setattr(mgr, "_compute_frame_payload", lambda _: pytest.fail("frame recomputed"))
+        mgr.register_client("gzip-viewer", {"frame_codec": "gzip-json-v1"})
+        await mgr.emit_initial_frame("gzip-viewer")
+        mgr.unregister_client("gzip-viewer")
+    assert sent[0][0] == "frame_gzip"
+    assert sent[0][2] == "gzip-viewer"
+    assert orjson.loads(gzip.decompress(sent[0][1]))["frame_idx"] == 0
 
     # Test seek
     payload = await mgr.seek(1)

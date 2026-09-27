@@ -13,4 +13,5 @@ export const socket: Socket = io(`${SERVER_URL}/fovea`, {
   reconnection: true,
   reconnectionAttempts: 10,
   reconnectionDelay: 1000,
+  auth: typeof DecompressionStream !== "undefined" ? { frame_codec: "gzip-json-v1" } : undefined,
 });

@@ -14,7 +14,7 @@ export function TelemetryStrip({ frame, latency, fps, activeCells, displayFps }:
     { label: "Latency", value: latency ? latency.toFixed(1) : "—", unit: "ms", detail: "stage total" },
     { label: "Active cells", value: frame ? activeCells.toLocaleString() : "—", unit: "", detail: "observed grid" },
     { label: "Points", value: frame ? frame.counters.n_raw.toLocaleString() : "—", unit: "", detail: "current scan" },
-    { label: "Display", value: displayFps ? String(displayFps) : "—", unit: "FPS", detail: "received frames" },
+    { label: "Display", value: displayFps ? displayFps.toFixed(1) : "—", unit: "FPS", detail: "received map frames" },
   ];
 
   return <section className="telemetry-strip" aria-label="Current frame telemetry">

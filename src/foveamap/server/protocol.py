@@ -44,6 +44,7 @@ class RingSparseDict(TypedDict):
     count: list[int]
     conf: list[int]
     flags: list[int]
+    display_group: list[int]
 
 
 class FrameUpdatePayload(TypedDict):
@@ -60,7 +61,7 @@ class FrameUpdatePayload(TypedDict):
     objects: list[dict[str, Any]]
 
 
-def serialise_rings(layers: GridLayers) -> list[RingSparseDict]:
+def serialise_rings(layers: GridLayers, display_groups: list[np.ndarray] | None = None) -> list[RingSparseDict]:
     """Extract sparse representation of occupied cells per ring for transport efficiency."""
     out: list[RingSparseDict] = []
     spec = layers.spec
@@ -89,6 +90,8 @@ def serialise_rings(layers: GridLayers) -> list[RingSparseDict]:
                 "count": cells["count"].tolist(),
                 "conf": cells["conf"].tolist(),
                 "flags": cells["flags"].tolist(),
+                "display_group": (display_groups[k].tolist() if display_groups is not None
+                                  else np.choose(cells["cls"], [0, 1, 5, 4, 5]).tolist()),
             }
         )
     return out
@@ -135,6 +138,8 @@ def serialise_frame_result(
                 "moving": bool(getattr(obj, "moving", False)),
                 "vote_frac": float(getattr(obj, "vote_frac", 0.0)),
                 "speed_mps": getattr(obj, "speed_mps", None),
+                "velocity_xy": list(obj.velocity_xy) if obj.velocity_xy is not None else None,
+                "instance_id": obj.instance_id,
                 "safety_critical": bool(getattr(obj, "safety_critical", False)),
             }
         )
@@ -149,6 +154,6 @@ def serialise_frame_result(
         "counters": counters_dict,
         "timings_ms": {k: float(v) for k, v in result.timings_ms.items()},
         "memory": memory_dict,
-        "rings": serialise_rings(result.layers),
+        "rings": serialise_rings(result.layers, result.display_groups),
         "objects": objects_list,
     }

@@ -98,3 +98,24 @@ def test_pipeline_runner_with_motion(synthetic_root: Path) -> None:
         assert len(obj.size) == 3
         assert obj.size[0] >= obj.size[1]  # l >= w
         assert isinstance(obj.cls_name, str)
+
+
+def test_oracle_disconnected_vehicle_clusters_get_separate_fitted_boxes() -> None:
+    rng = np.random.default_rng(4)
+    first = rng.normal((10.0, -5.0, 0.0), (0.6, 0.3, 0.2), (40, 3))
+    second = rng.normal((10.0, 6.0, 0.0), (0.6, 0.3, 0.2), (40, 3))
+    xyz = np.vstack((first, second)).astype(np.float32)
+    labels = np.full(len(xyz), (7 << 16) | 252, dtype=np.uint32)
+    scan = Scan("08", 0, xyz, np.zeros(len(xyz), dtype=np.float32), labels,
+                np.eye(4), 0.0)
+    super_cls, moving = raw_to_super(labels & 0xFFFF)
+    cur = ClassifiedScan(scan, super_cls, moving, np.full(len(xyz), 255, dtype=np.uint8))
+    cfg = SimpleNamespace(box=SimpleNamespace(angle_step_deg=1.0),
+                          cluster=SimpleNamespace(min_points=5), enabled=True)
+
+    out = estimate_motion(cur, [], [], cfg, use_oracle=True)
+
+    assert len(out.objects) == 2
+    assert {obj.instance_id for obj in out.objects} == {7}
+    assert all(obj.size[0] < 4 and obj.size[1] < 4 for obj in out.objects)
+    assert all(obj.moving for obj in out.objects)

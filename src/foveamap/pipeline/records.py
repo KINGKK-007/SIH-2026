@@ -37,6 +37,8 @@ class ObjectBox:
     vote_frac: float
     speed_mps: float | None
     safety_critical: bool
+    velocity_xy: tuple[float, float] | None = None  # ego-compensated m/s in current Velodyne axes
+    instance_id: int | None = None  # source annotation ID, when available
 
 
 @dataclass
@@ -47,4 +49,3 @@ class ClassifiedScan:
     conf: np.ndarray  # (N,) uint8
     objects: list[ObjectBox] = field(default_factory=list)
     raw_ids: np.ndarray | None = None
-

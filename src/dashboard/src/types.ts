@@ -36,6 +36,7 @@ export interface RingSparse {
   top_z: number[];
   clearance: number[];
   cls: number[];
+  display_group?: number[];
   moving_frac: number[];
   count: number[];
   conf: number[];
@@ -53,6 +54,8 @@ export interface ObjectBox {
   moving: boolean;
   vote_frac: number;
   speed_mps: number | null;
+  velocity_xy: [number, number] | null;
+  instance_id: number | null;
   safety_critical: boolean;
 }
 

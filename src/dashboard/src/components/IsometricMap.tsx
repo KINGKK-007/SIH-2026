@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, type MouseEventHandler } from "react";
 import type { ActiveLayer, AnalysisMode, FrameUpdatePayload, RingSparse } from "../types";
-import { isDrawableObject, isPersonObject, isVehicleObject, VEHICLE_COLORS } from "./vehicleStyles";
+import { isDrawableObject, isVehicleObject, objectDisplayGroup, VEHICLE_COLORS } from "./vehicleStyles";
+import { OBJECT_GROUPS } from "./objectPalette";
 
 type Paint = [number, number, number, number] | null;
 
@@ -242,11 +243,11 @@ export function IsometricMap(props: Props) {
     }
     if (props.showObjects && mode === "objects" && frame) {
       for (const obj of frame.objects) {
-        if (!isDrawableObject(obj) || isPersonObject(obj)) continue;
+        if (!isDrawableObject(obj)) continue;
         const p = project(obj.center[0], obj.center[1], obj.center[2], cx, cy, scale);
         const vehicle = isVehicleObject(obj);
         const palette = VEHICLE_COLORS[obj.moving ? "moving" : "static"];
-        ctx.strokeStyle = vehicle ? palette.line : props.selectedObject === obj.id ? "#f6bf66" : obj.moving ? "#f05a65" : "#58bdde";
+        ctx.strokeStyle = props.selectedObject === obj.id ? "#ffffff" : OBJECT_GROUPS[objectDisplayGroup(obj)].color;
         ctx.lineWidth = props.selectedObject === obj.id ? 3 : 2;
         if (vehicle) {
           const [x, y, z] = obj.center;
@@ -269,18 +270,20 @@ export function IsometricMap(props: Props) {
           ctx.stroke();
           ctx.shadowBlur = 0;
 
-          if (obj.moving) {
-            const arrowReach = Math.max(1.4, Math.min(3.5, (obj.speed_mps ?? 6) * 0.15 + 1.2));
-            const front = corner(length / 2, 0);
-            const tip = corner(length / 2 + arrowReach, 0);
-            const tipAngle = Math.atan2(tip.y - front.y, tip.x - front.x);
+          const velocity = obj.velocity_xy;
+          const speed = velocity ? Math.hypot(...velocity) : 0;
+          if (obj.moving && velocity && speed >= 0.4) {
+            const arrowReach = Math.max(2, Math.min(4, speed * 0.2 + 2));
+            const tip = project(x + velocity[0] / speed * arrowReach,
+              y + velocity[1] / speed * arrowReach, z, cx, cy, scale);
+            const tipAngle = Math.atan2(tip.y - p.y, tip.x - p.x);
             const headLen = 9;
             ctx.save();
-            ctx.strokeStyle = "#ff7954";
-            ctx.fillStyle = "#ff7954";
+            ctx.strokeStyle = palette.line;
+            ctx.fillStyle = palette.line;
             ctx.lineWidth = 2.5;
             ctx.beginPath();
-            ctx.moveTo(front.x, front.y);
+            ctx.moveTo(p.x, p.y);
             ctx.lineTo(tip.x, tip.y);
             ctx.stroke();
 
@@ -293,13 +296,6 @@ export function IsometricMap(props: Props) {
             ctx.closePath();
             ctx.fill();
 
-            // Speed label for moving vehicles
-            if (obj.speed_mps != null && obj.speed_mps > 0.5) {
-              const speedText = `${(obj.speed_mps * 3.6).toFixed(0)} km/h`;
-              ctx.font = "bold 10px monospace";
-              ctx.fillStyle = "#ff7954";
-              ctx.fillText(speedText, tip.x + 8, tip.y + 4);
-            }
             ctx.restore();
           }
         } else {

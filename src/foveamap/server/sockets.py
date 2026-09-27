@@ -3,6 +3,9 @@
 from __future__ import annotations
 
 import asyncio
+import gzip
+from threading import Lock
+from time import perf_counter
 from typing import Any
 
 import orjson
@@ -45,6 +48,54 @@ class PlaybackManager:
         self.is_playing = False
         self.speed = 1.0  # multiplier (1.0 = 10 fps)
         self._loop_task: asyncio.Task[None] | None = None
+        self._compute_lock = Lock()
+        self._last_payload: dict[str, Any] | None = None
+        self.last_compute_ms = 0.0
+        self.last_emit_ms = 0.0
+        self.last_pack_ms = 0.0
+        self.last_transport_ms = 0.0
+        self.clients: dict[str, bool] = {}  # sid -> gzip-json support
+        self._emit_lock = asyncio.Lock()
+
+    async def _send_frame_packet(self, event: str, data: Any, sid: str) -> None:
+        """Queue both parts of a binary frame in order, without per-part task scheduling."""
+        manager = sio.manager
+        if not hasattr(sio, "_send_packet") or not hasattr(manager, "get_participants"):
+            await sio.emit(event, data, to=sid, namespace="/fovea")
+            return
+        packet = socketio.packet.Packet(
+            socketio.packet.EVENT, data=[event, data], namespace="/fovea",
+        )
+        for _, eio_sid in manager.get_participants("/fovea", sid):
+            await sio._send_packet(eio_sid, packet)
+
+    def register_client(self, sid: str, auth: dict[str, Any] | None) -> None:
+        self.clients[sid] = bool(auth and auth.get("frame_codec") == "gzip-json-v1")
+
+    def unregister_client(self, sid: str) -> None:
+        self.clients.pop(sid, None)
+
+    async def _emit_frame(self, payload: dict[str, Any], to_sid: str | None = None) -> None:
+        async with self._emit_lock:
+            targets = [to_sid] if to_sid is not None else list(self.clients)
+            compressed: bytes | None = None
+            pack_ms = 0.0
+            transport_ms = 0.0
+            for sid in targets:
+                if self.clients.get(sid, False):
+                    if compressed is None:
+                        started = perf_counter()
+                        compressed = gzip.compress(orjson.dumps(payload), compresslevel=1, mtime=0)
+                        pack_ms = (perf_counter() - started) * 1000
+                    started = perf_counter()
+                    await self._send_frame_packet("frame_gzip", compressed, sid)
+                    transport_ms += (perf_counter() - started) * 1000
+                else:
+                    started = perf_counter()
+                    await self._send_frame_packet("frame_update", payload, sid)
+                    transport_ms += (perf_counter() - started) * 1000
+            self.last_pack_ms = pack_ms
+            self.last_transport_ms = transport_ms
 
     def get_state(self) -> dict[str, Any]:
         return {
@@ -56,11 +107,18 @@ class PlaybackManager:
             "preset": self.cfgs.grid.active_preset if hasattr(self.cfgs, "grid") else "fovea_default",
             "is_playing": self.is_playing,
             "speed": self.speed,
+            "compute_wall_ms": round(self.last_compute_ms, 1),
+            "emit_ms": round(self.last_emit_ms, 1),
+            "pack_ms": round(self.last_pack_ms, 1),
+            "transport_ms": round(self.last_transport_ms, 1),
         }
 
     def _compute_frame_payload(self, frame_idx: int) -> dict[str, Any]:
         """Compute pipeline result and serialize to payload dict in worker thread."""
-        result = self.runner.process(self.seq, frame_idx)
+        # Socket connect, seek and playback can all request frames at once.
+        # The runner owns mutable temporal tracks and must never run in parallel.
+        with self._compute_lock:
+            result = self.runner.process(self.seq, frame_idx)
         timestamp = 0.0
         if hasattr(self.seq, "times") and frame_idx < len(self.seq.times):
             timestamp = float(self.seq.times[frame_idx])
@@ -76,13 +134,21 @@ class PlaybackManager:
             preset_name=preset_name,
         )
 
-    async def emit_current_frame(self) -> dict[str, Any]:
+    async def emit_current_frame(self, to_sid: str | None = None) -> dict[str, Any]:
         """Process and emit the current frame result."""
         frame_idx = self.seq.frame_index(self.current_idx)
         loop = asyncio.get_running_loop()
         payload = await loop.run_in_executor(None, self._compute_frame_payload, frame_idx)
-        await sio.emit("frame_update", payload, namespace="/fovea")
+        self._last_payload = payload
+        await self._emit_frame(payload, to_sid=to_sid)
         return payload
+
+    async def emit_initial_frame(self, sid: str) -> None:
+        """Give a new viewer the latest frame without recomputing or broadcasting it."""
+        if self._last_payload is not None:
+            await self._emit_frame(self._last_payload, to_sid=sid)
+        else:
+            await self.emit_current_frame(to_sid=sid)
 
     async def play(self) -> None:
         if self.is_playing:
@@ -102,37 +168,38 @@ class PlaybackManager:
         self._loop_task = None
 
     async def seek(self, frame_idx: int) -> dict[str, Any]:
+        was_playing = self.is_playing
+        if was_playing:
+            await self.pause()
         self.current_idx = max(0, min(frame_idx, self.total_frames - 1))
-        return await self.emit_current_frame()
+        payload = await self.emit_current_frame()
+        if was_playing:
+            await self.play()
+        return payload
 
     async def step(self, delta: int = 1) -> dict[str, Any]:
-        self.current_idx = (self.current_idx + delta) % max(1, self.total_frames)
-        return await self.emit_current_frame()
+        return await self.seek((self.current_idx + delta) % max(1, self.total_frames))
 
     def set_speed(self, speed: float) -> None:
         self.speed = max(0.1, min(speed, 10.0))
 
     async def _playback_loop(self) -> None:
         loop = asyncio.get_running_loop()
-        next_future = None
         while self.is_playing:
             try:
                 t0 = loop.time()
                 frame_idx = self.seq.frame_index(self.current_idx)
 
-                # Use prefetched payload if available, else compute
-                if next_future is not None:
-                    payload = await next_future
-                else:
-                    payload = await loop.run_in_executor(None, self._compute_frame_payload, frame_idx)
-
-                # Immediately schedule prefetch of the next frame while transmitting current frame
+                compute_started = loop.time()
+                payload = await loop.run_in_executor(None, self._compute_frame_payload, frame_idx)
+                self.last_compute_ms = (loop.time() - compute_started) * 1000
                 next_idx = (self.current_idx + 1) % max(1, self.total_frames)
-                next_frame_idx = self.seq.frame_index(next_idx)
-                next_future = loop.run_in_executor(None, self._compute_frame_payload, next_frame_idx)
 
                 # Emit current frame to client
-                await sio.emit("frame_update", payload, namespace="/fovea")
+                self._last_payload = payload
+                emit_started = loop.time()
+                await self._emit_frame(payload)
+                self.last_emit_ms = (loop.time() - emit_started) * 1000
                 self.current_idx = next_idx
 
                 target = 0.1 / self.speed
@@ -167,9 +234,23 @@ def get_playback_manager() -> PlaybackManager:
 @sio.on("connect", namespace="/fovea")
 async def on_connect(sid: str, environ: dict, auth: dict | None = None) -> None:
     if _manager:
+        _manager.register_client(sid, auth)
         await sio.emit("state_update", _manager.get_state(), to=sid, namespace="/fovea")
-        # Emit initial frame upon connection
-        await _manager.emit_current_frame()
+        await _manager.emit_initial_frame(sid)
+
+
+@sio.on("disconnect", namespace="/fovea")
+async def on_disconnect(sid: str) -> None:
+    if _manager:
+        _manager.unregister_client(sid)
+        if not _manager.clients and _manager.is_playing:
+            await _manager.pause()
+
+
+@sio.on("frame_codec", namespace="/fovea")
+async def on_frame_codec(sid: str, data: dict[str, Any]) -> None:
+    if _manager and sid in _manager.clients:
+        _manager.clients[sid] = data.get("frame_codec") == "gzip-json-v1"
 
 
 @sio.on("seek_frame", namespace="/fovea")

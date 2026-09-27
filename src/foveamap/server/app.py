@@ -240,6 +240,8 @@ def create_app(
             injected_scan = replace(scan, xyz=xyz, raw_labels=labels, remission=remission)
 
             class PreviewSequence:
+                seq = injected_scan.seq
+
                 def load_frame(self, _: int) -> Any:
                     return injected_scan
 

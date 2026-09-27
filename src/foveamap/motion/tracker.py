@@ -31,6 +31,8 @@ class Track:
     missed: int = 0
     speed_mps: float | None = None
     last_yaw: float | None = None
+    instance_id: int | None = None
+    filtered_velocity_xy: np.ndarray | None = None
 
 
 class ClusterTracker:
@@ -72,6 +74,7 @@ class ClusterTracker:
             # Mark all tracks missed
             for trk in self.tracks:
                 trk.missed += 1
+                trk.filtered_velocity_xy = None
             self.tracks = [trk for trk in self.tracks if trk.missed <= 2]
             return []
 
@@ -87,6 +90,7 @@ class ClusterTracker:
                     last_center=center_arr,
                     history=hist,
                     last_yaw=obj.yaw,
+                    instance_id=obj.instance_id,
                 )
                 self._next_id += 1
                 self.tracks.append(trk)
@@ -105,6 +109,7 @@ class ClusterTracker:
                         vote_frac=obj.vote_frac,
                         speed_mps=None,
                         safety_critical=bool(obj.safety_critical or is_vru or obj.moving),
+                        instance_id=obj.instance_id,
                     )
                 )
             return updated
@@ -133,7 +138,11 @@ class ClusterTracker:
                 d = dist_matrix[i, j]
                 if d > self.gate_m:
                     break
-                if i in unassigned_objs and j in unassigned_trks:
+                same_class = (objects[i].cls_name.removeprefix("moving-")
+                              == self.tracks[j].cls_name.removeprefix("moving-"))
+                same_instance = (objects[i].instance_id is None or self.tracks[j].instance_id is None
+                                 or objects[i].instance_id == self.tracks[j].instance_id)
+                if same_class and same_instance and i in unassigned_objs and j in unassigned_trks:
                     matched_objects[i] = j
                     matched_tracks.add(j)
                     unassigned_objs.remove(i)
@@ -148,34 +157,48 @@ class ClusterTracker:
             if i in matched_objects:
                 trk_idx = matched_objects[i]
                 trk = self.tracks[trk_idx]
+                consecutive_observation = trk.missed == 0
                 disp_vec = center_arr - comp_centers[trk_idx]
                 displacement = float(np.linalg.norm(disp_vec[:2]))
                 speed_mps = displacement / max(1e-4, dt)
+                raw_velocity = disp_vec[:2] / max(1e-4, dt)
 
                 trk.history.append(obj.moving)
                 trk.last_center = center_arr
+                trk.cls_name = obj.cls_name
+                trk.instance_id = obj.instance_id
                 trk.hits += 1
                 trk.missed = 0
                 trk.speed_mps = speed_mps
 
                 moving_hits = sum(1 for m in trk.history if m)
                 is_consistently_moving = (moving_hits >= self.min_hits)
-                final_moving = bool(obj.moving or is_consistently_moving or is_vru)
+                # Oracle labels are authoritative: partial LiDAR visibility can
+                # jitter a parked car's centroid by metres between scans.
+                promoted_by_motion = (obj.instance_id is None and consecutive_observation
+                                      and speed_mps >= self.v_min_mps)
+                final_moving = bool(obj.moving or is_consistently_moving or is_vru
+                                    or promoted_by_motion)
 
-                # Align vehicle heading with velocity direction only for moving objects
-                if final_moving:
-                    if speed_mps >= self.v_min_mps:
-                        vel_yaw = float(np.arctan2(disp_vec[1], disp_vec[0]))
-                        trk.last_yaw = vel_yaw
-                        yaw = vel_yaw
-                    elif trk.last_yaw is not None:
-                        yaw = trk.last_yaw
+                # Keep the rectangle fitted to current points. Direction is a
+                # separate vector; oriented-box yaw has a 180-degree ambiguity.
+                measured_velocity = None
+                out_speed = None
+                if final_moving and consecutive_observation:
+                    previous = trk.filtered_velocity_xy
+                    if previous is not None:
+                        # The previous estimate is in the previous Velodyne frame.
+                        previous = T_prev_to_cur[:2, :2] @ previous
+                        smoothed = 0.75 * previous + 0.25 * raw_velocity
                     else:
-                        yaw = obj.yaw
-                    out_speed = float(speed_mps)
+                        smoothed = raw_velocity
+                    trk.filtered_velocity_xy = smoothed
+                    filtered_speed = float(np.linalg.norm(smoothed))
+                    if filtered_speed >= self.v_min_mps:
+                        measured_velocity = (float(smoothed[0]), float(smoothed[1]))
+                        out_speed = filtered_speed
                 else:
-                    yaw = obj.yaw
-                    out_speed = None
+                    trk.filtered_velocity_xy = None
 
                 updated_objects.append(
                     ObjectBox(
@@ -183,13 +206,15 @@ class ClusterTracker:
                         cls_name=obj.cls_name,
                         center=obj.center,
                         size=obj.size,
-                        yaw=yaw,
+                        yaw=obj.yaw,
                         n_points=obj.n_points,
                         mean_conf=obj.mean_conf,
                         moving=final_moving,
                         vote_frac=obj.vote_frac,
                         speed_mps=out_speed,
                         safety_critical=bool(obj.safety_critical or is_vru or final_moving),
+                        velocity_xy=measured_velocity,
+                        instance_id=obj.instance_id,
                     )
                 )
             else:
@@ -201,6 +226,7 @@ class ClusterTracker:
                     last_center=center_arr,
                     history=hist,
                     last_yaw=obj.yaw,
+                    instance_id=obj.instance_id,
                 )
                 self._next_id += 1
                 self.tracks.append(trk)
@@ -218,13 +244,15 @@ class ClusterTracker:
                         vote_frac=obj.vote_frac,
                         speed_mps=None,
                         safety_critical=bool(obj.safety_critical or is_vru or obj.moving),
+                        instance_id=obj.instance_id,
                     )
                 )
 
         # Increment missed count for unmatched tracks and prune
-        for j, trk in enumerate(self.tracks):
+        for j, trk in enumerate(self.tracks[:len(comp_centers)]):
             if j not in matched_tracks:
                 trk.missed += 1
+                trk.filtered_velocity_xy = None
         self.tracks = [trk for trk in self.tracks if trk.missed <= 2]
 
         return updated_objects

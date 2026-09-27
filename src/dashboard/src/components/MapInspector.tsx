@@ -1,6 +1,7 @@
 import { ChevronDown } from "lucide-react";
 import type { ActiveLayer, AnalysisMode, FrameUpdatePayload } from "../types";
-import { isDrawableObject, isPersonObject } from "./vehicleStyles";
+import { isDrawableObject, objectDisplayGroup } from "./vehicleStyles";
+import { OBJECT_GROUPS } from "./objectPalette";
 
 interface MapInspectorProps {
   frame: FrameUpdatePayload | null;
@@ -19,7 +20,7 @@ const zoneNames = ["Near field", "Intermediate", "Reduced detail", "Far field"];
 
 export function MapInspector({ frame, layer, mode, selectedRing, selectedObject, terrain, onLayerChange, onRingSelect, onObjectSelect }: MapInspectorProps) {
   const rings = [...(frame?.rings ?? [])].sort((a, b) => a.ring_idx - b.ring_idx);
-  const objects = (frame?.objects ?? []).filter((object) => isDrawableObject(object) && !isPersonObject(object));
+  const objects = (frame?.objects ?? []).filter((object) => isDrawableObject(object));
   const selected = objects.find((object) => object.id === selectedObject);
 
   return <aside className="map-inspector" aria-label="Map inspector">
@@ -34,8 +35,13 @@ export function MapInspector({ frame, layer, mode, selectedRing, selectedObject,
         <option value="confidence">Confidence</option>
       </select><ChevronDown size={15} /></div>
       {layer === "height" && <div className="height-scale"><div className="height-scale-track" /><span>−2.5 m</span><span>+4.0 m</span></div>}
-      <p className="inspector-hint">{layer === "height" ? "Top height, falling back to ground height in the LiDAR frame." : layer === "traversability" ? "Green: traversable. Red: blocked. Gray: no ground estimate." : layer === "confidence" ? "Source confidence. Oracle mode uses full confidence." : layer === "moving" ? "Red marks cells with moving point evidence." : "Semantic groups with kerb and low clearance overlays."}</p>
+      <p className="inspector-hint">{layer === "height" ? "Top height, falling back to ground height in the LiDAR frame." : layer === "traversability" ? "Green: traversable. Red: blocked. Gray: no ground estimate." : layer === "confidence" ? "Source confidence. Oracle mode uses full confidence." : layer === "moving" ? "Red marks cells with moving point evidence." : mode === "objects" ? "Colors separate vehicle motion, static objects, terrain and unclassified cells." : "Semantic groups with kerb and low clearance overlays."}</p>
     </section>
+    {mode === "objects" && layer === "class" && <section className="inspector-section object-legend-section" aria-label="Object detection color key">
+      <span className="inspector-label">Color key</span>
+      <div className="object-color-key">{OBJECT_GROUPS.map((group) => <div key={group.label}><i style={{ backgroundColor: group.color }} /><span>{group.label}</span></div>)}</div>
+      <p className="inspector-hint">Cell colors use point-label votes; box outlines identify detected instances. Mixed cells show one dominant group.</p>
+    </section>}
     <section className="inspector-section">
       <div className="inspector-section-heading"><span className="inspector-label">Resolution</span><small>{rings.length ? `${rings.length} zones` : "Waiting for data"}</small></div>
       <div className="resolution-list">{rings.map((ring, index) => <button
@@ -58,8 +64,8 @@ export function MapInspector({ frame, layer, mode, selectedRing, selectedObject,
     </section>}
     {mode === "objects" && <section className="inspector-section object-inspector-section">
       <div className="inspector-section-heading"><span className="inspector-label">Objects</span><small>{objects.length} visible</small></div>
-      <div className="inspector-object-list">{objects.map((object) => <button key={object.id} className={selectedObject === object.id ? "selected" : ""} onClick={() => onObjectSelect(selectedObject === object.id ? null : object.id)}><span><i className={object.moving ? "moving" : "static"} />{object.cls_name} #{object.id}</span><small>{Math.hypot(object.center[0], object.center[1]).toFixed(1)} m{object.speed_mps == null ? "" : ` · ${(object.speed_mps * 3.6).toFixed(0)} km/h`}</small></button>)}</div>
-      {selected && <div className="selected-object-detail"><strong>{selected.cls_name} #{selected.id}</strong><span>{selected.moving ? "Moving" : "Static"} · {Math.round(selected.mean_conf / 255 * 100)}% source confidence</span><span>{selected.speed_mps == null ? "Speed unavailable" : `${(selected.speed_mps * 3.6).toFixed(1)} km/h speed`} · {Math.hypot(selected.center[0], selected.center[1]).toFixed(1)} m from ego</span><span>{Math.hypot(selected.center[0], selected.center[1]) < 8 && (selected.moving || selected.safety_critical) ? "Nearby object · inspect path" : "Outside 8 m proximity cue"}</span></div>}
+      <div className="inspector-object-list">{objects.map((object) => <button key={object.id} className={selectedObject === object.id ? "selected" : ""} onClick={() => onObjectSelect(selectedObject === object.id ? null : object.id)}><span><i style={{ backgroundColor: OBJECT_GROUPS[objectDisplayGroup(object)].color }} />{object.cls_name} #{object.id}</span><small>{Math.hypot(object.center[0], object.center[1]).toFixed(1)} m{object.speed_mps == null ? "" : ` · ${(object.speed_mps * 3.6).toFixed(0)} km/h`}</small></button>)}</div>
+      {selected && <div className="selected-object-detail"><strong>{selected.cls_name} #{selected.id}</strong><span>{selected.moving ? "Moving" : "Static"} · {Math.round(selected.mean_conf / 255 * 100)}% source confidence</span><span>{selected.speed_mps == null ? "Velocity unavailable" : `~${(selected.speed_mps * 3.6).toFixed(1)} km/h smoothed speed`} · {Math.hypot(selected.center[0], selected.center[1]).toFixed(1)} m from ego</span><span>{Math.hypot(selected.center[0], selected.center[1]) < 8 && (selected.moving || selected.safety_critical) ? "Nearby object · inspect path" : "Outside 8 m proximity cue"}</span></div>}
       {!objects.length && <p className="inspector-hint">No object boxes in this frame.</p>}
     </section>}
   </aside>;

@@ -1,13 +1,16 @@
 import type { ObjectBox } from "../types";
+import { OBJECT_GROUPS } from "./objectPalette";
 
 const VEHICLE_CLASSES = new Set(["vehicle", "car", "bicycle", "bicyclist", "bus", "motorcycle", "motorcyclist", "on-rails", "truck", "other-vehicle"]);
 
-// Static  → electric lime-green  (#50FF82)  matches point-cloud cls=3 color
-// Moving  → hot neon magenta     (#FF32A0)  matches point-cloud cls=4 color
 export const VEHICLE_COLORS = {
-  static: { line: "#35E1F3", fill: "rgba(53, 225, 243, 0.18)" },
-  moving: { line: "#FF7954", fill: "rgba(255, 121, 84, 0.22)" },
+  static: { line: OBJECT_GROUPS[2].color, fill: "rgba(68, 124, 200, 0.22)" },
+  moving: { line: OBJECT_GROUPS[3].color, fill: "rgba(195, 77, 88, 0.26)" },
 } as const;
+
+export function objectDisplayGroup(obj: ObjectBox): number {
+  return isVehicleObject(obj) ? (obj.moving ? 3 : 2) : obj.moving ? 5 : 4;
+}
 
 export function isVehicleObject(obj: ObjectBox): boolean {
   return VEHICLE_CLASSES.has(obj.cls_name.replace(/^moving-/, "").toLowerCase());

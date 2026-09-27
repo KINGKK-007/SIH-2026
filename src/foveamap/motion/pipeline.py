@@ -103,68 +103,45 @@ def estimate_motion(
                 continue
 
             pts = cur_xyz[inst_mask]
-            inst_mov = moving_mask[inst_mask]
-
-            # Partition disconnected clusters so each physical vehicle is its own individual instance
-            span_xy = np.ptp(pts[:, :2], axis=0) if len(pts) > 1 else np.zeros(2)
+            # An annotation ID can contain spatially disconnected returns in a
+            # scan. Keep one rectangle per physical cluster, not a giant merged box.
+            span_xy = np.ptp(pts[:, :2], axis=0)
             if np.max(span_xy) > 5.0 or (is_inst_moving and np.max(span_xy) > 4.2):
                 from sklearn.cluster import DBSCAN
-                db = DBSCAN(eps=1.8, min_samples=min_points).fit(pts[:, :3])
-                valid_cids = np.unique(db.labels_[db.labels_ >= 0])
-                if len(valid_cids) > 0:
-                    clusters = [
-                        (pts[db.labels_ == cid], inst_sems[db.labels_ == cid], inst_mov[db.labels_ == cid])
-                        for cid in valid_cids
-                    ]
-                else:
-                    clusters = [(pts, inst_sems, inst_mov)]
+                cluster_ids = DBSCAN(eps=1.8, min_samples=min_points).fit_predict(pts)
+                cluster_masks = [cluster_ids == cid for cid in np.unique(cluster_ids) if cid >= 0]
+                if not cluster_masks:
+                    cluster_masks = [np.ones(len(pts), dtype=bool)]
             else:
-                clusters = [(pts, inst_sems, inst_mov)]
+                cluster_masks = [np.ones(len(pts), dtype=bool)]
 
-            for sub_idx, (cl_pts, cl_sems, cl_movs) in enumerate(clusters):
-                n_cl = len(cl_pts)
-                if n_cl < min_points:
+            for sub_idx, cluster_mask in enumerate(cluster_masks):
+                cl_pts = pts[cluster_mask]
+                if len(cl_pts) < min_points:
                     continue
-
-                cl_maj_id = int(np.bincount(cl_sems).argmax())
-                cl_info = LABELS.get(cl_maj_id)
+                cl_sems = inst_sems[cluster_mask]
+                cl_moving = moving_mask[inst_mask][cluster_mask]
+                cl_info = LABELS.get(int(np.bincount(cl_sems).argmax()))
                 cl_name = cl_info.name if cl_info else cls_name
-                cl_is_vru = cl_name in VULNERABLE_ROAD_USERS
-                cl_is_veh = cl_name in VEHICLE_CLASSES
-                cl_is_moving = bool(np.any(cl_movs))
-
-                if not cl_is_moving and not cl_is_veh and not cl_is_vru:
+                if not (np.any(cl_moving) or cl_name in VEHICLE_CLASSES
+                        or cl_name in VULNERABLE_ROAD_USERS):
                     continue
-
                 center, size, yaw = oriented_box(cl_pts, angle_step_deg=angle_step)
-
-                # Clamp and regularize dimensions for realistic vehicles
-                l, w, h = size
-                if cl_is_veh or cl_is_moving:
-                    max_l = 14.0 if cl_name in ("bus", "truck", "on-rails") else 6.0
-                    l = min(max_l, max(2.2, l))
-                    w = min(3.2, max(1.2, w))
-                    h = min(4.0, max(0.9, h))
-                    size = (float(l), float(w), float(h))
-
-                vote_frac = float(np.mean(cl_movs))
-                safety_crit = is_safety or cl_is_moving or cl_is_vru
-                mean_conf = float(np.mean(conf[inst_mask])) if len(conf) == n_pts else 255.0
-
-                sub_id = int(inst) * 100 + sub_idx if len(clusters) > 1 else int(inst)
                 objects.append(
                     ObjectBox(
-                        id=sub_id,
+                        id=int(inst) * 100 + sub_idx if len(cluster_masks) > 1 else int(inst),
                         cls_name=cl_name,
                         center=center,
                         size=size,
                         yaw=yaw,
-                        n_points=n_cl,
-                        mean_conf=mean_conf,
-                        moving=cl_is_moving or cl_is_vru,
-                        vote_frac=vote_frac,
+                        n_points=len(cl_pts),
+                        mean_conf=float(np.mean(conf[inst_mask][cluster_mask])) if len(conf) == n_pts else 255.0,
+                        moving=bool(np.any(cl_moving) or cl_name in VULNERABLE_ROAD_USERS),
+                        vote_frac=float(np.mean(cl_moving)),
                         speed_mps=None,
-                        safety_critical=safety_crit,
+                        safety_critical=bool(is_safety or np.any(cl_moving)
+                                             or cl_name in VULNERABLE_ROAD_USERS),
+                        instance_id=int(inst),
                     )
                 )
 

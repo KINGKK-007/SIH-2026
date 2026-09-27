@@ -36,8 +36,21 @@ export function App() {
   const [selectedObject, setSelectedObject] = useState<number | null>(null);
   const [history, setHistory] = useState<Array<{ latency: number; fps: number; memory: number }>>([]);
   const frameTimes = useRef<number[]>([]);
+  const lastReceivedFrame = useRef<number | null>(null);
+
+  const updateDisplayRate = () => {
+    const now = performance.now();
+    frameTimes.current = frameTimes.current.filter((time) => time >= now - 3000);
+    const times = frameTimes.current;
+    const last = times.at(-1);
+    setDisplayFps(last != null && now - last < 1500 && times.length > 1
+      ? (times.length - 1) * 1000 / (last - times[0]) : 0);
+  };
 
   useEffect(() => {
+    let active = true;
+    let pendingCompressed: Blob | ArrayBuffer | null = null;
+    let decoding = false;
     const onFrame = (payload: FrameUpdatePayload) => {
       setFrame(payload);
       setPreviewFrame(null);
@@ -48,21 +61,50 @@ export function App() {
         memory: payload.memory.fovea_bytes / 1048576,
       }].slice(-60));
       const now = performance.now();
-      frameTimes.current.push(now);
-      frameTimes.current = frameTimes.current.filter((time) => time >= now - 1000);
-      setDisplayFps(frameTimes.current.length);
+      if (payload.frame_idx !== lastReceivedFrame.current) {
+        frameTimes.current.push(now);
+        lastReceivedFrame.current = payload.frame_idx;
+      }
+      updateDisplayRate();
+    };
+    const decodeLatest = async () => {
+      while (active && pendingCompressed) {
+        const encoded = pendingCompressed;
+        pendingCompressed = null;
+        try {
+          const stream = (encoded instanceof Blob ? encoded.stream() : new Blob([encoded]).stream())
+            .pipeThrough(new DecompressionStream("gzip"));
+          const payload = await new Response(stream).json() as FrameUpdatePayload;
+          if (active) onFrame(payload);
+        } catch (error) {
+          console.error("Could not decode LiDAR frame; requesting JSON fallback", error);
+          socket.emit("frame_codec", { frame_codec: "json-v1" });
+        }
+      }
+      decoding = false;
+    };
+    const onCompressedFrame = (encoded: Blob | ArrayBuffer) => {
+      // Keep the newest scan if decoding/rendering falls behind live playback.
+      pendingCompressed = encoded;
+      if (!decoding) {
+        decoding = true;
+        void decodeLatest();
+      }
     };
     const onConnect = () => setConnected(true);
-    const onDisconnect = () => setConnected(false);
+    const onDisconnect = () => { setConnected(false); setDisplayFps(0); };
     socket.on("connect", onConnect);
     socket.on("disconnect", onDisconnect);
     socket.on("state_update", setState);
     socket.on("frame_update", onFrame);
+    socket.on("frame_gzip", onCompressedFrame);
     return () => {
+      active = false;
       socket.off("connect", onConnect);
       socket.off("disconnect", onDisconnect);
       socket.off("state_update", setState);
       socket.off("frame_update", onFrame);
+      socket.off("frame_gzip", onCompressedFrame);
     };
   }, []);
 
@@ -83,9 +125,8 @@ export function App() {
     sync();
     window.addEventListener("hashchange", sync);
     const timer = window.setInterval(() => {
-      frameTimes.current = frameTimes.current.filter((time) => time >= performance.now() - 1000);
-      setDisplayFps(frameTimes.current.length);
-    }, 1000);
+      updateDisplayRate();
+    }, 500);
     return () => { window.removeEventListener("hashchange", sync); window.clearInterval(timer); };
   }, []);
 
@@ -120,7 +161,7 @@ export function App() {
   const isMapView = MAP_VIEWS.includes(view);
 
   return <div className={`app-shell ${collapsed ? "sidebar-collapsed" : ""}`}>
-    <AppSidebar view={view} collapsed={collapsed} connected={connected} sequence={frame?.seq ?? state?.seq ?? "08"} onSelect={selectView} onToggle={() => setCollapsed((value) => !value)} />
+    <AppSidebar view={view} collapsed={collapsed} connected={connected} onSelect={selectView} onToggle={() => setCollapsed((value) => !value)} />
     <section className="workspace">
       <Header connected={connected} frame={frame} state={state} title={TITLES[view]} />
       <main className="content">

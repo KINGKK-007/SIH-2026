@@ -50,7 +50,7 @@ export const PlaybackControls: React.FC<PlaybackControlsProps> = ({ state, curre
 
   return (
     <div className="playback-panel playback-compact">
-      <header><span>Sequence playback</span><small>{isPlaying ? "Playing" : "Paused"}</small></header>
+      <header><span>Playback</span><small>{isPlaying ? "Playing" : "Paused"}</small></header>
       {/* Row 1: transport controls + speed */}
       <div className="playback-row-top">
         <div className="playback-buttons">
@@ -89,7 +89,7 @@ export const PlaybackControls: React.FC<PlaybackControlsProps> = ({ state, curre
       {/* Row 2: scrub slider full width */}
       <input
         type="range"
-        aria-label="Seek sequence frame"
+        aria-label="Seek frame"
         min={0}
         max={Math.max(1, totalFrames - 1)}
         value={seekValue}

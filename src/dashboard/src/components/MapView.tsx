@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { IsometricMap } from "./IsometricMap";
-import { isDrawableObject, isPersonObject, isVehicleObject, VEHICLE_COLORS } from "./vehicleStyles";
+import { isDrawableObject, isVehicleObject, objectDisplayGroup, VEHICLE_COLORS } from "./vehicleStyles";
+import { OBJECT_GROUPS } from "./objectPalette";
 import type { ActiveLayer, AnalysisMode, FrameUpdatePayload } from "../types";
 
 interface MapViewProps {
@@ -30,15 +31,7 @@ const TERRAIN_COLORS: Record<number, [number, number, number, number]> = {
   4: [194, 57, 52, 0.90],
 };
 
-// cls=3 STATIC_OBSTACLE → electric lime-green;  cls=4 DYNAMIC → neon magenta
-// These must be immediately distinguishable from terrain and from each other.
-const OBJECT_COLORS: Record<number, [number, number, number, number]> = {
-  0: [140, 145, 154, 0.20],
-  1: [101, 116, 132, 0.18],
-  2: [101, 116, 132, 0.20],
-  3: [80, 255, 130, 0.97],   // STATIC_OBSTACLE  — bright electric lime-green
-  4: [255, 50, 160, 0.98],   // DYNAMIC (moving)  — hot neon magenta
-};
+const FALLBACK_OBJECT_GROUPS = [0, 1, 5, 4, 5];
 
 // Per-ring boundaries remain legible over the dark map.
 const RING_COLORS = [
@@ -68,9 +61,13 @@ function jetColor(t: number): [number, number, number] {
 function cellColor(ring: FrameUpdatePayload["rings"][number], i: number, layer: ActiveLayer, mode: AnalysisMode): [number, number, number, number] | null {
   const flags = ring.flags[i] || 0;
   if (layer === "class") {
-    if (flags & FLAG_LOW_CLEAR) return [177, 99, 239, 0.98];
-    if (flags & FLAG_KERB) return [255, 185, 57, 0.98];
-    return (mode === "terrain" ? TERRAIN_COLORS : OBJECT_COLORS)[ring.cls[i] || 0] ?? TERRAIN_COLORS[0];
+    if (mode === "terrain") {
+      if (flags & FLAG_LOW_CLEAR) return [177, 99, 239, 0.98];
+      if (flags & FLAG_KERB) return [255, 185, 57, 0.98];
+      return TERRAIN_COLORS[ring.cls[i] || 0] ?? TERRAIN_COLORS[0];
+    }
+    const group = ring.display_group?.[i] ?? FALLBACK_OBJECT_GROUPS[ring.cls[i] || 0];
+    return [...(OBJECT_GROUPS[group]?.rgba ?? OBJECT_GROUPS[0].rgba)];
   }
   if (layer === "height") {
     const ground = ring.ground_z[i], top = ring.top_z[i];
@@ -184,6 +181,26 @@ export const MapView: React.FC<MapViewProps> = ({
       moving: objects.filter((obj) => isVehicleObject(obj) && obj.moving).length,
     };
   }, [frame]);
+  const velocityArrows = useMemo(() => {
+    if (!frame || analysisMode !== "objects" || !visibility.objects || perspective !== "top") return [];
+    const maxExtentMm = Math.max(...frame.rings.map((ring) => ring.r_max_mm));
+    const scale = Math.min(size.width, size.height) * 0.44 / maxExtentMm * zoom;
+    const cx = size.width / 2 + offset.x;
+    const cy = size.height / 2 + offset.y;
+    return frame.objects.flatMap((obj) => {
+      const velocity = obj.velocity_xy;
+      if (!isDrawableObject(obj) || !obj.moving || !velocity) return [];
+      const speed = Math.hypot(...velocity);
+      if (speed < 0.4) return [];
+      const dx = -velocity[1] / speed;
+      const dy = -velocity[0] / speed;
+      const length = Math.max(25, Math.min(60, Math.max(...obj.size.slice(0, 2)) * 1000 * scale / 2 + 18));
+      return [{ id: obj.id, x: cx - obj.center[1] * 1000 * scale,
+        y: cy - obj.center[0] * 1000 * scale,
+        angle: Math.atan2(dy, dx) + Math.PI / 2, length,
+        color: selectedObject === obj.id ? "#ffffff" : OBJECT_GROUPS[objectDisplayGroup(obj)].color }];
+    });
+  }, [frame, analysisMode, visibility.objects, perspective, size, zoom, offset, selectedObject]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -278,7 +295,7 @@ export const MapView: React.FC<MapViewProps> = ({
     // Skip degenerate boxes from clustering artifacts (> 15m = merged cluster).
     if (visibility.objects && analysisMode === "objects" && frame.objects && frame.objects.length > 0) {
       for (const obj of frame.objects) {
-        if (isPersonObject(obj) || !isDrawableObject(obj)) continue;
+        if (!isDrawableObject(obj)) continue;
         const [ox, oy] = obj.center;
         const [l, w] = obj.size;
 
@@ -296,37 +313,26 @@ export const MapView: React.FC<MapViewProps> = ({
         const vehicle = isVehicleObject(obj);
         const palette = VEHICLE_COLORS[obj.moving ? "moving" : "static"];
 
-        ctx.fillStyle = vehicle ? palette.fill : obj.moving ? "rgba(231, 70, 79, 0.18)" : "rgba(66, 170, 216, 0.12)";
+        const objectColor = OBJECT_GROUPS[objectDisplayGroup(obj)].color;
+        ctx.fillStyle = vehicle ? palette.fill : `${objectColor}33`;
         ctx.fillRect(-wPx / 2, -lPx / 2, wPx, lPx);
 
-        ctx.strokeStyle = vehicle ? palette.line : selectedObject === obj.id ? "#ffce7c" : nearby ? "#ff696d" : obj.moving ? "#f3a35f" : "#60c8e7";
+        ctx.strokeStyle = selectedObject === obj.id ? "#ffffff" : objectColor;
         ctx.lineWidth = selectedObject === obj.id ? 3.5 : vehicle ? 2.5 : 2;
         if (vehicle && selectedObject === obj.id) { ctx.shadowColor = palette.line; ctx.shadowBlur = 13; }
         ctx.strokeRect(-wPx / 2, -lPx / 2, wPx, lPx);
         ctx.shadowBlur = 0;
 
-        if (!vehicle || obj.moving) {
-          ctx.strokeStyle = vehicle ? palette.line : obj.moving ? "#ff696d" : "#60c8e7";
-          ctx.lineWidth = vehicle ? 2.5 : 2;
-          ctx.beginPath();
-          ctx.moveTo(0, -lPx / 2);
-          ctx.lineTo(0, -lPx / 2 - 12);
-          ctx.moveTo(-4, -lPx / 2 - 8);
-          ctx.lineTo(0, -lPx / 2 - 12);
-          ctx.lineTo(4, -lPx / 2 - 8);
-          ctx.stroke();
-        }
         ctx.restore();
 
-        if (!vehicle || (obj.moving && obj.speed_mps != null && obj.speed_mps > 0.5)) {
-          const speedText = obj.speed_mps == null ? "" : ` · ${(obj.speed_mps * 3.6).toFixed(0)} km/h`;
-          const labelText = `${obj.cls_name}${speedText}${nearby ? " · NEARBY" : ""}`;
+        if ((width >= 600 || selectedObject === obj.id) && (!vehicle || obj.moving)) {
+          const labelText = `${obj.cls_name}${nearby ? " · NEARBY" : ""}`;
           ctx.font = "bold 11px monospace";
           ctx.textAlign = "center";
           const tw = ctx.measureText(labelText).width;
           const lx = screenX - tw / 2 - 4;
           const ly = screenY - lPx / 2 - 19;
-          ctx.fillStyle = nearby ? "#96394a" : obj.moving ? "#704936" : "#16465e";
+          ctx.fillStyle = objectColor;
           ctx.beginPath();
           if (typeof ctx.roundRect === "function") {
             ctx.roundRect(lx, ly, tw + 8, 17, 3);
@@ -334,7 +340,7 @@ export const MapView: React.FC<MapViewProps> = ({
             ctx.rect(lx, ly, tw + 8, 17);
           }
           ctx.fill();
-          ctx.fillStyle = "#ffffff";
+          ctx.fillStyle = vehicle ? "#ffffff" : "#121820";
           ctx.fillText(labelText, screenX, ly + 12);
           ctx.textAlign = "left";
         }
@@ -467,7 +473,7 @@ export const MapView: React.FC<MapViewProps> = ({
     if (analysisMode === "objects" && visibility.objects) {
       const nearest = frame.objects
         .map((object) => ({ object, distance: Math.hypot(object.center[0] - xM, object.center[1] - yM) }))
-        .filter(({ object }) => isDrawableObject(object) && !isPersonObject(object))
+        .filter(({ object }) => isDrawableObject(object))
         .sort((a, b) => a.distance - b.distance)[0];
       if (nearest && nearest.distance <= Math.max(nearest.object.size[0], nearest.object.size[1], 2)) {
         onObjectSelect(nearest.object.id === selectedObject ? null : nearest.object.id);
@@ -515,6 +521,9 @@ export const MapView: React.FC<MapViewProps> = ({
           onClick={handleMapClick}
           onMouseLeave={() => { handleMouseUp(); setHoverInfo(null); }}
         /> : <IsometricMap frame={frame} layer={activeLayer} mode={analysisMode} width={size.width} height={size.height} zoom={zoom} offset={offset} showRings={visibility.rings} showObjects={visibility.objects} showVehicle={visibility.vehicle} selectedRing={selectedRing} selectedObject={selectedObject} probePoint={probePoint} onZoom={zoomByWheel} onUnavailable={fallbackToTop} colorFor={cellColor} onMouseDown={handleMouseDown} onMouseMove={handleMouseMove} onMouseUp={handleMouseUp} onMouseLeave={() => { handleMouseUp(); setHoverInfo(null); }} onClick={handleMapClick} />}
+        {velocityArrows.map((arrow) => <div key={arrow.id} className="velocity-arrow" aria-hidden="true" style={{ left: arrow.x, top: arrow.y, transform: `rotate(${arrow.angle}rad)`, color: arrow.color }}>
+          <svg width="18" height={arrow.length} viewBox="0 0 18 40" fill="none" style={{ bottom: 0 }}><path d="M9 38V4M3 11L9 3L15 11" stroke="#101820" strokeWidth="5" strokeLinecap="round" strokeLinejoin="round" /><path d="M9 38V4M3 11L9 3L15 11" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
+        </div>)}
         {analysisMode === "objects" && <div className="vehicle-count-overlay" aria-label={`Current grid: ${objectCounts.static} static vehicles, ${objectCounts.moving} moving vehicles`}>
           <span className="vehicle-count-heading">VEHICLES IN CURRENT GRID</span>
           <div className="vehicle-count-row static"><span className="vehicle-count-swatch" /><span>Static vehicles</span><strong>{objectCounts.static}</strong></div>

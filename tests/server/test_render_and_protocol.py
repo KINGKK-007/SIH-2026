@@ -72,11 +72,13 @@ def test_protocol_serialise(synthetic_root: Path) -> None:
         for field in [
             "ring_idx", "cell_mm", "r_max_mm", "side",
             "iy", "ix", "ground_z", "top_z", "clearance",
-            "cls", "moving_frac", "count", "conf", "flags",
+            "cls", "display_group", "moving_frac", "count", "conf", "flags",
         ]:
             assert field in ring
         # All sparse cell arrays have matching length
         n_occ = len(ring["iy"])
         assert len(ring["ix"]) == n_occ
         assert len(ring["cls"]) == n_occ
+        assert len(ring["display_group"]) == n_occ
+        assert set(ring["display_group"]) <= set(range(6))
         assert len(ring["count"]) == n_occ

@@ -40,6 +40,7 @@ from foveamap.grid.presets import GridSpec
 from foveamap.io.labels import raw_to_super
 from foveamap.io.sequence import Sequence
 from foveamap.pipeline.records import ClassifiedScan, ObjectBox, Prediction, Scan
+from foveamap.pipeline.display import display_groups
 
 
 @dataclass
@@ -61,6 +62,7 @@ class FrameResult:
     counters: FrameCounters
     timings_ms: dict[str, float]
     memory: MemoryReport
+    display_groups: list[np.ndarray] | None = None
 
 
 def _ns_to_ms(ns: int) -> float:
@@ -207,6 +209,28 @@ class PipelineRunner:
                 use_oracle=True,
                 device=self.device,
             )
+            if idx > 0 and T_prev is None:
+                # Seeking directly to a frame still needs its predecessor to
+                # establish identity and velocity for the first displayed box.
+                try:
+                    prev_scan = seq.load_frame(idx - 1)
+                    prev_prediction = self.model.predict(prev_scan)
+                    prev_super, prev_moving = raw_to_super(prev_prediction.raw_ids)
+                    prev_classified = estimate_motion(
+                        ClassifiedScan(
+                            scan=prev_scan, super_cls=prev_super, moving=prev_moving,
+                            conf=prev_prediction.conf, objects=[], raw_ids=prev_prediction.raw_ids,
+                        ),
+                        prev_scans=[], transforms=[], cfg=self.motion_cfg,
+                        use_oracle=True, device=self.device,
+                    )
+                    self.tracker.reset()
+                    self.tracker.update(prev_classified.objects)
+                    T_prev = relative_transform(seq.calib, seq.poses, idx, idx - 1)
+                    if hasattr(seq, "times") and idx < len(seq.times):
+                        dt = float(seq.times[idx] - seq.times[idx - 1])
+                except (IndexError, OSError, ValueError, AttributeError):
+                    T_prev = None
             objects = self.tracker.update(classified.objects, T_prev, dt=dt)
             super_cls = classified.super_cls
             moving = classified.moving
@@ -271,6 +295,13 @@ class PipelineRunner:
         mem = memory_report(self.preset, layers, self.grid_cfg)
         timings_ns["memory_ms"] = perf_counter_ns() - t0
 
+        t0 = perf_counter_ns()
+        display_class = display_groups(
+            self.preset, layers, acc, scan.xyz, prediction.raw_ids, super_cls, moving,
+            self.grid_cfg.min_range_mm,
+        )
+        timings_ns["display_ms"] = perf_counter_ns() - t0
+
         timings_ms = {k: _ns_to_ms(v) for k, v in timings_ns.items()}
 
         return FrameResult(
@@ -280,4 +311,5 @@ class PipelineRunner:
             counters=acc.counters,
             timings_ms=timings_ms,
             memory=mem,
+            display_groups=display_class,
         )
