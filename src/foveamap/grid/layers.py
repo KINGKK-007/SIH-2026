@@ -42,6 +42,7 @@ FLAG_TRAVERSABLE = 1 << 3  # set by the derived-layer stage (Phase 11)
 FLAG_KERB = 1 << 4
 FLAG_STEEP = 1 << 5
 FLAG_LOW_CLEARANCE = 1 << 6
+FLAG_POTHOLE = 1 << 7  # negative obstacle / depression (pothole, trench, drain)
 
 GROUND_TIE_ORDER = (NON_DRIVABLE_TERRAIN, UNKNOWN, DRIVABLE)
 MAJORITY_TIE_ORDER = (DYNAMIC, STATIC_OBSTACLE, NON_DRIVABLE_TERRAIN, UNKNOWN, DRIVABLE)

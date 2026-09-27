@@ -9,7 +9,8 @@ import { PlaybackControls } from "./components/PlaybackControls";
 import { PerceptionLab, StepPreview, type ZoomResult } from "./components/PerceptionLab";
 import { TelemetryStrip } from "./components/TelemetryStrip";
 import { SERVER_URL, socket } from "./socket";
-import type { ActiveLayer, AnalysisMode, FrameUpdatePayload, PlaybackState } from "./types";
+import type { ActiveLayer, AnalysisMode, FrameUpdatePayload, PlaybackState, RingSparseWire } from "./types";
+import { decodeRing } from "./types";
 
 const TITLES: Record<View, string> = {
   overview: "Perception workspace", live: "Live perception", semantic: "Semantic map",
@@ -52,7 +53,9 @@ export function App() {
     let pendingCompressed: Blob | ArrayBuffer | null = null;
     let decoding = false;
     const onFrame = (payload: FrameUpdatePayload) => {
-      setFrame(payload);
+      const wireRings = (payload as unknown as { rings: RingSparseWire[] }).rings ?? [];
+      const decoded: FrameUpdatePayload = { ...payload, rings: wireRings.map(decodeRing) };
+      setFrame(decoded);
       setPreviewFrame(null);
       const frameLatency = Object.values(payload.timings_ms).reduce<number>((sum, value) => sum + (value ?? 0), 0);
       setHistory((current) => [...current, {
@@ -143,10 +146,9 @@ export function App() {
       for (let r = 0; r < numRings; r++) {
         const ring = rings[r];
         const clsArr = ring.cls;
-        const countArr = ring.count;
         const len = clsArr.length;
         for (let i = 0; i < len; i++) {
-          counts[clsArr[i]] += countArr[i] || 1;
+          counts[clsArr[i]] += 1;
         }
       }
     }
@@ -204,7 +206,8 @@ function chooseFarWindow(frame: FrameUpdatePayload): { x: number; y: number } {
     const range = Math.max(Math.abs(x), Math.abs(y));
     if (range < inner / 1000 + 3 || range > ring.r_max_mm / 1000 - 3) continue;
     if (ring.ground_z[i] === -32768) continue;
-    if (ring.count[i] > bestCount) { best = i; bestCount = ring.count[i]; }
+    const quality = ring.conf[i] ?? 0;
+    if (quality > bestCount) { best = i; bestCount = quality; }
   }
   if (best < 0) return { x: 70, y: 0 };
   return {

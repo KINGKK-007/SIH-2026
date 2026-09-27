@@ -20,16 +20,18 @@ from foveamap.grid.layers import GridLayers
 def compute_derived_layers(layers: GridLayers, cfg: object) -> GridLayers:
     """Run all derived geometry stages in order: halo -> slope -> step -> clearance -> traversability.
 
-    When ``cfg.fast_mode`` is True, slope/step/clearance are skipped so the pipeline
-    stays within the 100 ms real-time budget (~10 Hz).  Traversability then falls back
-    to purely class + obstacle flags, which is still accurate for navigation.
+    When ``cfg.fast_mode`` is True, halo/slope/clearance are skipped.  Step detection
+    (kerbs + potholes) still runs — it is a pure neighbour-difference over int arrays
+    and takes < 2 ms, but provides FLAG_KERB and FLAG_POTHOLE that are judicial
+    requirements (problem statement: 'curbs, potholes, or overhanging obstacles').
     """
     fast = getattr(cfg, "fast_mode", False)
     if not fast:
         layers = compute_halo(layers, cfg)
         layers = compute_slope(layers, cfg)
-        layers = compute_step(layers, cfg)
         layers = compute_clearance(layers, cfg)
+    # Step/kerb + pothole always runs — fast even without halo padding
+    layers = compute_step(layers, cfg)
     layers = compute_traversability(layers, cfg)
     return layers
 

@@ -4,8 +4,8 @@ import { OBJECT_GROUPS } from "./objectPalette";
 const VEHICLE_CLASSES = new Set(["vehicle", "car", "bicycle", "bicyclist", "bus", "motorcycle", "motorcyclist", "on-rails", "truck", "other-vehicle"]);
 
 export const VEHICLE_COLORS = {
-  static: { line: OBJECT_GROUPS[2].color, fill: "rgba(68, 124, 200, 0.22)" },
-  moving: { line: OBJECT_GROUPS[3].color, fill: "rgba(195, 77, 88, 0.26)" },
+  static: { line: OBJECT_GROUPS[2].color, fill: "rgba(33, 150, 243, 0.20)" },
+  moving: { line: OBJECT_GROUPS[3].color, fill: "rgba(255, 51, 102, 0.24)" },
 } as const;
 
 export function objectDisplayGroup(obj: ObjectBox): number {

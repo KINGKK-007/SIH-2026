@@ -41,6 +41,7 @@ from foveamap.io.labels import raw_to_super
 from foveamap.io.sequence import Sequence
 from foveamap.pipeline.records import ClassifiedScan, ObjectBox, Prediction, Scan
 from foveamap.pipeline.display import display_groups
+from foveamap.pipeline.temporal_map import TemporalMapAccumulator
 
 
 @dataclass
@@ -128,6 +129,9 @@ class PipelineRunner:
         from foveamap.motion.tracker import ClusterTracker
         self.tracker = ClusterTracker(self.motion_cfg)
 
+        # Persistent rolling 2.5D world map — addresses Issue A (mapping vs projection)
+        self.temporal_map = TemporalMapAccumulator(preset)
+
         # Log which backend was selected (visible in --dry-run output and server startup)
         import warnings
         _dev_label = f"device={device!r} → backend={self.backend.name!r}"
@@ -187,6 +191,7 @@ class PipelineRunner:
                 self.tracker.reset()
         else:
             self.tracker.reset()
+            self.temporal_map.reset()
 
         self._last_idx = idx
         self._last_seq = seq.seq
@@ -289,6 +294,11 @@ class PipelineRunner:
             t0 = perf_counter_ns()
             layers = compute_derived_layers(layers, self.derived_cfg)
             timings_ns["derived_ms"] = perf_counter_ns() - t0
+
+        # Stage 5.6: Temporal map accumulation — persistent rolling world map
+        t0 = perf_counter_ns()
+        layers = self.temporal_map.update_and_merge(layers, scan.pose, moving)
+        timings_ns["temporal_ms"] = perf_counter_ns() - t0
 
         # Stage 6: Memory accounting
         t0 = perf_counter_ns()

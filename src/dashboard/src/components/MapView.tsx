@@ -24,11 +24,11 @@ const FLAG_LOW_CLEAR    = 0x40;
 const FLAG_TRAVERSABLE  = 0x08;
 
 const TERRAIN_COLORS: Record<number, [number, number, number, number]> = {
-  0: [100, 113, 128, 0.65],
-  1: [8, 145, 160, 0.94],
-  2: [210, 142, 35, 0.92],
-  3: [194, 57, 52, 0.90],
-  4: [194, 57, 52, 0.90],
+  0: [100, 112, 132, 0.55],   // unknown — cool slate
+  1: [0,   220, 150, 0.97],   // drivable — vivid emerald
+  2: [255, 160,  20, 0.95],   // other terrain — bright amber
+  3: [255,  45,  75, 0.97],   // obstacle — vivid red
+  4: [255,  45,  75, 0.97],
 };
 
 const FALLBACK_OBJECT_GROUPS = [0, 1, 5, 4, 5];
@@ -64,6 +64,10 @@ function cellColor(ring: FrameUpdatePayload["rings"][number], i: number, layer: 
     if (mode === "terrain") {
       if (flags & FLAG_LOW_CLEAR) return [177, 99, 239, 0.98];
       if (flags & FLAG_KERB) return [255, 185, 57, 0.98];
+      // Use display_group to distinguish moving vs static vehicle cells
+      const group = ring.display_group?.[i];
+      if (group === 3) return [255, 255, 255, 0.97];  // moving vehicle — white
+      if (group === 2) return [ 33, 150, 243, 0.95];  // static vehicle — bright blue
       return TERRAIN_COLORS[ring.cls[i] || 0] ?? TERRAIN_COLORS[0];
     }
     const group = ring.display_group?.[i] ?? FALLBACK_OBJECT_GROUPS[ring.cls[i] || 0];
@@ -189,9 +193,9 @@ export const MapView: React.FC<MapViewProps> = ({
     const cy = size.height / 2 + offset.y;
     return frame.objects.flatMap((obj) => {
       const velocity = obj.velocity_xy;
-      if (!isDrawableObject(obj) || !obj.moving || !velocity) return [];
+      if (!isDrawableObject(obj) || !velocity) return [];
       const speed = Math.hypot(...velocity);
-      if (speed < 0.4) return [];
+      if (speed < 0.3) return [];
       const dx = -velocity[1] / speed;
       const dy = -velocity[0] / speed;
       const length = Math.max(25, Math.min(60, Math.max(...obj.size.slice(0, 2)) * 1000 * scale / 2 + 18));
@@ -323,10 +327,20 @@ export const MapView: React.FC<MapViewProps> = ({
         ctx.strokeRect(-wPx / 2, -lPx / 2, wPx, lPx);
         ctx.shadowBlur = 0;
 
+        // Height label at box centre — drawn in the already-translated/rotated context
+        const heightM = obj.size[2];
+        if (heightM > 0.5 && lPx > 22 && wPx > 20) {
+          ctx.font = "bold 10px monospace";
+          ctx.textAlign = "center";
+          ctx.fillStyle = "rgba(255,255,255,0.82)";
+          ctx.fillText(`${heightM.toFixed(1)}m`, 0, 4);
+        }
+
         ctx.restore();
 
         if ((width >= 600 || selectedObject === obj.id) && (!vehicle || obj.moving)) {
-          const labelText = `${obj.cls_name}${nearby ? " · NEARBY" : ""}`;
+          const speedLabel = obj.speed_mps != null && obj.speed_mps > 0.3 ? ` · ${(obj.speed_mps * 3.6).toFixed(0)} km/h` : "";
+          const labelText = `${obj.cls_name}${nearby ? " · NEARBY" : ""}${speedLabel}`;
           ctx.font = "bold 11px monospace";
           ctx.textAlign = "center";
           const tw = ctx.measureText(labelText).width;

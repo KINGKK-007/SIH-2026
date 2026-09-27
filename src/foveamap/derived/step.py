@@ -13,8 +13,10 @@ from foveamap.derived.halo import extract_padded_ring
 from foveamap.grid.layers import (
     FLAG_HAS_GROUND,
     FLAG_KERB,
+    FLAG_POTHOLE,
     GridLayers,
 )
+from foveamap.io.labels import DRIVABLE
 
 
 def compute_step_height_mm(layers: GridLayers, cfg: object) -> list[np.ndarray]:
@@ -54,11 +56,13 @@ def compute_step_height_mm(layers: GridLayers, cfg: object) -> list[np.ndarray]:
 
 
 def compute_step(layers: GridLayers, cfg: object) -> GridLayers:
-    """Detect kerbs and obstacle steps, updating FLAG_KERB in layer flags."""
+    """Detect kerbs and obstacle steps (FLAG_KERB) and potholes/depressions (FLAG_POTHOLE)."""
     steps = compute_step_height_mm(layers, cfg)
 
     kerb_min_mm = getattr(cfg, "kerb_min_mm", int(getattr(cfg, "kerb_min_m", 0.06) * 1000))
     kerb_max_mm = getattr(cfg, "kerb_max_mm", int(getattr(cfg, "kerb_max_m", 0.25) * 1000))
+    # Pothole: drivable cell whose ground is ≥ pothole_depth_mm below the neighbourhood mean
+    pothole_depth_mm = int(getattr(cfg, "pothole_depth_mm", 80))  # 8 cm default
 
     new_rings = [r.copy() for r in layers.rings]
     for r_idx, ring in enumerate(new_rings):
@@ -71,5 +75,36 @@ def compute_step(layers: GridLayers, cfg: object) -> GridLayers:
             ring["flags"] | FLAG_KERB,
             ring["flags"] & (255 - FLAG_KERB),
         )
+
+        # Pothole detection: drivable cell with ground significantly BELOW neighbours.
+        # We reuse the padded ring to compute neighbourhood mean ground height.
+        padded = extract_padded_ring(layers, r_idx, cfg)
+        side = ring.shape[0]
+        center_gz = padded["ground_z"][1:-1, 1:-1].astype(np.int32)
+        center_cls = ring["cls"]
+        is_drivable = center_cls == DRIVABLE
+
+        # Compute neighbourhood mean from 4-neighbours that have ground
+        nbr_sum = np.zeros((side, side), dtype=np.int32)
+        nbr_cnt = np.zeros((side, side), dtype=np.int32)
+        for dy, dx in [(0, 1), (0, -1), (1, 0), (-1, 0)]:
+            ny0, ny1 = 1 + dy, 1 + dy + side
+            nx0, nx1 = 1 + dx, 1 + dx + side
+            nbr_flags = padded["flags"][ny0:ny1, nx0:nx1]
+            nbr_has_g = (nbr_flags & FLAG_HAS_GROUND) != 0
+            nbr_gz = padded["ground_z"][ny0:ny1, nx0:nx1].astype(np.int32)
+            nbr_sum += np.where(nbr_has_g, nbr_gz, 0)
+            nbr_cnt += nbr_has_g.astype(np.int32)
+
+        has_nbrs = nbr_cnt > 0
+        nbr_mean = np.where(has_nbrs, nbr_sum // np.maximum(nbr_cnt, 1), center_gz)
+        depression = nbr_mean.astype(np.int32) - center_gz  # positive = cell is below neighbours
+
+        is_pothole = has_g & is_drivable & has_nbrs & (depression >= pothole_depth_mm)
+        ring["flags"] = np.where(
+            is_pothole,
+            ring["flags"] | FLAG_POTHOLE,
+            ring["flags"] & ~np.uint8(FLAG_POTHOLE),
+        ).astype(np.uint8)
 
     return GridLayers(spec=layers.spec, rings=new_rings)

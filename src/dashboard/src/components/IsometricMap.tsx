@@ -272,7 +272,7 @@ export function IsometricMap(props: Props) {
 
           const velocity = obj.velocity_xy;
           const speed = velocity ? Math.hypot(...velocity) : 0;
-          if (obj.moving && velocity && speed >= 0.4) {
+          if (velocity && speed >= 0.3) {
             const arrowReach = Math.max(2, Math.min(4, speed * 0.2 + 2));
             const tip = project(x + velocity[0] / speed * arrowReach,
               y + velocity[1] / speed * arrowReach, z, cx, cy, scale);

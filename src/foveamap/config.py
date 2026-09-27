@@ -313,6 +313,7 @@ class DerivedConfig(_Strict):
     halo: bool
     fill_missing_ground: bool
     fast_mode: bool = False
+    pothole_depth_mm: int = 80  # minimum depression depth in mm to flag as pothole
 
     @model_validator(mode="after")
     def _ordered_steps(self) -> DerivedConfig:
