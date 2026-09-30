@@ -103,7 +103,6 @@ export function decodeRing(wire: RingSparseWire): RingSparse {
   }
 
   // Legacy JSON fallback
-  const n = (wire.iy ?? []).length;
   const toI16 = (a?: number[]) => Int16Array.from(a ?? []);
   const toU8  = (a?: number[]) => Uint8Array.from(a ?? []);
   return {

@@ -144,7 +144,7 @@ class TemporalMapAccumulator:
         self._flags[very_old]    = 0
 
         # ── 3. Back-fill unobserved ring cells from world map ─────────────
-        new_rings = self._backfill_rings(layers, ego_x, ego_z)
+        new_rings = self._backfill_rings(layers, pose)
 
         return GridLayers(spec=layers.spec, rings=new_rings)
 
@@ -269,12 +269,13 @@ class TemporalMapAccumulator:
             self._flags[row, col] = fl_write
             self._age[row, col]   = 0  # freshly observed
 
-    def _backfill_rings(self, layers: GridLayers, ego_x: float, ego_z: float) -> list[np.ndarray]:
+    def _backfill_rings(self, layers: GridLayers, pose: np.ndarray) -> list[np.ndarray]:
         """For each ring cell with no current observation, look up the world map."""
         spec = layers.spec
         new_rings = [r.copy() for r in layers.rings]
 
-        ox, oz = self._origin_xy
+        R = pose[:3, :3].astype(np.float32)
+        t = pose[:3, 3].astype(np.float32)
 
         for k, ring in enumerate(new_rings):
             rs = spec.rings[k] if spec else None
@@ -290,13 +291,16 @@ class TemporalMapAccumulator:
             if len(iy) == 0:
                 continue
 
-            # Cell centre in sensor x/y metres
+            # Cell centre in sensor x/y metres (z=0: only the ground plane footprint is needed)
             x_sens = (iy.astype(np.float32) - half_side + 0.5) * (cell_mm * 1e-3)
             y_sens = (ix.astype(np.float32) - half_side + 0.5) * (cell_mm * 1e-3)
+            pts_sensor = np.stack([x_sens, y_sens, np.zeros_like(x_sens)], axis=1)
 
-            # Approximate world position (no rotation — use ego position offset only)
-            wx = ego_x + x_sens
-            wz = ego_z + y_sens
+            # Rotate+translate into world frame exactly like _project_to_world, so the
+            # lookup lands on the same world cells the write path filled in.
+            pts_world = (R @ pts_sensor.T).T + t
+            wx = pts_world[:, 0]
+            wz = pts_world[:, 2]
 
             col, row = self._world_to_grid(wx, wz)
             in_bounds = (col >= 0) & (col < self.n) & (row >= 0) & (row < self.n)

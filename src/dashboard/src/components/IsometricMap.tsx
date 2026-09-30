@@ -269,41 +269,50 @@ export function IsometricMap(props: Props) {
           if (props.selectedObject === obj.id) { ctx.shadowColor = palette.line; ctx.shadowBlur = 12; }
           ctx.stroke();
           ctx.shadowBlur = 0;
-
-          const velocity = obj.velocity_xy;
-          const speed = velocity ? Math.hypot(...velocity) : 0;
-          if (velocity && speed >= 0.3) {
-            const arrowReach = Math.max(2, Math.min(4, speed * 0.2 + 2));
-            const tip = project(x + velocity[0] / speed * arrowReach,
-              y + velocity[1] / speed * arrowReach, z, cx, cy, scale);
-            const tipAngle = Math.atan2(tip.y - p.y, tip.x - p.x);
-            const headLen = 9;
-            ctx.save();
-            ctx.strokeStyle = palette.line;
-            ctx.fillStyle = palette.line;
-            ctx.lineWidth = 2.5;
-            ctx.beginPath();
-            ctx.moveTo(p.x, p.y);
-            ctx.lineTo(tip.x, tip.y);
-            ctx.stroke();
-
-            // Arrow head
-            ctx.beginPath();
-            ctx.moveTo(tip.x, tip.y);
-            ctx.lineTo(tip.x - headLen * Math.cos(tipAngle - 0.45), tip.y - headLen * Math.sin(tipAngle - 0.45));
-            ctx.lineTo(tip.x - headLen * 0.6 * Math.cos(tipAngle), tip.y - headLen * 0.6 * Math.sin(tipAngle));
-            ctx.lineTo(tip.x - headLen * Math.cos(tipAngle + 0.45), tip.y - headLen * Math.sin(tipAngle + 0.45));
-            ctx.closePath();
-            ctx.fill();
-
-            ctx.restore();
-          }
         } else {
           ctx.strokeRect(p.x - 7, p.y - 7, 14, 14);
           ctx.font = "10px monospace";
           ctx.fillStyle = ctx.strokeStyle;
           const speed = obj.speed_mps == null ? "" : ` ${(obj.speed_mps * 3.6).toFixed(0)} km/h`;
           ctx.fillText(`${obj.cls_name}${speed}`, p.x + 11, p.y - 9);
+        }
+
+        const velocity = obj.velocity_xy;
+        const speed = velocity ? Math.hypot(...velocity) : 0;
+        if (velocity && speed >= 0.3) {
+          const [x, y, z] = obj.center;
+          const arrowReach = Math.max(3, Math.min(6, speed * 0.3 + 3));
+          const tip = project(x + velocity[0] / speed * arrowReach,
+            y + velocity[1] / speed * arrowReach, z, cx, cy, scale);
+          const tipAngle = Math.atan2(tip.y - p.y, tip.x - p.x);
+          const headLen = 11;
+
+          const drawArrow = (strokeStyle: string, fillStyle: string, lineWidth: number, shrink: number) => {
+            const hl = headLen - shrink;
+            ctx.strokeStyle = strokeStyle;
+            ctx.fillStyle = fillStyle;
+            ctx.lineWidth = lineWidth;
+            ctx.lineCap = "round";
+            ctx.beginPath();
+            ctx.moveTo(p.x, p.y);
+            ctx.lineTo(tip.x, tip.y);
+            ctx.stroke();
+
+            ctx.beginPath();
+            ctx.moveTo(tip.x, tip.y);
+            ctx.lineTo(tip.x - hl * Math.cos(tipAngle - 0.45), tip.y - hl * Math.sin(tipAngle - 0.45));
+            ctx.lineTo(tip.x - hl * 0.6 * Math.cos(tipAngle), tip.y - hl * 0.6 * Math.sin(tipAngle));
+            ctx.lineTo(tip.x - hl * Math.cos(tipAngle + 0.45), tip.y - hl * Math.sin(tipAngle + 0.45));
+            ctx.closePath();
+            ctx.fill();
+          };
+
+          ctx.save();
+          // Dark outline pass first so the arrow reads clearly against busy terrain,
+          // matching the bold look of the top-down view's SVG arrow icon.
+          drawArrow("#101820", "#101820", 5.5, -2);
+          drawArrow(palette.line, palette.line, 2.5, 0);
+          ctx.restore();
         }
       }
     }
