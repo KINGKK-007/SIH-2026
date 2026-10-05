@@ -21,12 +21,8 @@
 ## Demo video
 
 <a href="https://youtu.be/_Xer_w2xR28" target="_blank">
-  <img src="https://img.youtube.com/vi/_Xer_w2xR28/maxresdefault.jpg" alt="FoveaMap demo video" width="720">
-  <br>
-  <img src="https://img.shields.io/badge/%E2%96%B6-Watch%20the%20demo%20on%20YouTube-FF0000?style=for-the-badge&logo=youtube&logoColor=white" alt="Watch on YouTube">
+  <img src="https://img.youtube.com/vi/_Xer_w2xR28/maxresdefault.jpg" alt="▶ FoveaMap demo video — click to watch on YouTube" width="720">
 </a>
-
-**[youtu.be/_Xer_w2xR28](https://youtu.be/_Xer_w2xR28)** — click the thumbnail above to play the demo.
 
 ---
 
