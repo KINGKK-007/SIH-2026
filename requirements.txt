@@ -15,6 +15,7 @@ imageio[ffmpeg]
 fastapi
 uvicorn[standard]
 python-socketio
+orjson           # Socket.IO frame packing (server/sockets.py)
 pytest
 hypothesis
 pybind11         # only for the optional C++ backend
