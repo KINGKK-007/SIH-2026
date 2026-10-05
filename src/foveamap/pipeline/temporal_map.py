@@ -65,6 +65,14 @@ class TemporalMapAccumulator:
         Half-side of the world map in metres (default 200 m → 400 × 400 m grid).
     cell_m :
         World-map cell size in metres (default 0.20 m = 20 cm).
+    backfill_enabled :
+        Whether unobserved ring cells get filled from the persistent world map.
+        Off by default: the world map writes at a coarser 20 cm resolution and
+        through a full pose rotation, so filled-in patches read as solid blocky
+        regions against the fine-ring scan-line pattern of live LiDAR returns —
+        visually inconsistent with an honest per-frame point cloud. The world map
+        itself keeps accumulating either way, so this can be flipped on later
+        without losing history.
     """
 
     def __init__(
@@ -72,7 +80,9 @@ class TemporalMapAccumulator:
         spec: GridSpec,
         map_radius_m: float = 200.0,
         cell_m: float = 0.20,
+        backfill_enabled: bool = False,
     ) -> None:
+        self.backfill_enabled = backfill_enabled
         self.cell_m = float(cell_m)
         self.cell_mm = int(cell_m * 1000)
         n = int(2 * map_radius_m / cell_m)
@@ -144,6 +154,8 @@ class TemporalMapAccumulator:
         self._flags[very_old]    = 0
 
         # ── 3. Back-fill unobserved ring cells from world map ─────────────
+        if not self.backfill_enabled:
+            return layers
         new_rings = self._backfill_rings(layers, pose)
 
         return GridLayers(spec=layers.spec, rings=new_rings)
