@@ -14,6 +14,11 @@ node_modules/
 *.bin
 *.label
 
+# Small (~140MB, 60-frame) demo subset of sequence 08, committed so the Render
+# deploy (oracle/cached mode) has something to serve without the full 9GB dataset.
+!demo_data/sequences/08/velodyne/*.bin
+!demo_data/sequences/08/labels/*.label
+
 # Python / tooling
 __pycache__/
 *.py[cod]

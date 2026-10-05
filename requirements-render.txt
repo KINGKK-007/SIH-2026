@@ -1,0 +1,17 @@
+# Runtime-only deps for the Render deploy (oracle/cached mode, CPU).
+# Dev tools (ruff/black/mypy/pytest-cov) from requirements.txt are omitted on purpose.
+numpy
+scipy
+numba
+pyyaml
+pydantic>=2
+tqdm
+psutil
+pandas
+matplotlib
+scikit-learn
+opencv-python-headless
+imageio[ffmpeg]
+fastapi
+uvicorn[standard]
+python-socketio

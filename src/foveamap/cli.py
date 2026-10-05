@@ -104,8 +104,10 @@ def build_parser() -> argparse.ArgumentParser:
 
     p_serve = sub.add_parser("serve", help="launch dashboard server with Socket.IO streaming (T13.2)")
     _add_common(p_serve)
-    p_serve.add_argument("--host", default="127.0.0.1", help="bind host")
-    p_serve.add_argument("--port", type=int, default=8000, help="bind port")
+    p_serve.add_argument("--host", default=os.environ.get("HOST", "127.0.0.1"), help="bind host")
+    p_serve.add_argument(
+        "--port", type=int, default=int(os.environ.get("PORT", 8000)), help="bind port"
+    )
     p_serve.add_argument("--mode", choices=["oracle", "cached", "live"], default="oracle")
     p_serve.add_argument("--model", default=None)
 
