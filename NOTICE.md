@@ -1,6 +1,6 @@
 # NOTICE — FoveaMap
 
-FoveaMap is © 2026 Kanav Kumar, licensed under Apache 2.0 (see `LICENSE`).
+FoveaMap is © 2026 FoveaMap contributors, licensed under the MIT License (see `LICENSE`).
 
 ---
 
@@ -23,24 +23,20 @@ FoveaMap is © 2026 Kanav Kumar, licensed under Apache 2.0 (see `LICENSE`).
 
 ## Pretrained Models (to be downloaded separately)
 
-**FRNet** (primary segmenter, Phase 3)
-- Authors: Xiangxu Lin et al.
-- Repository: https://github.com/Xiangxu-0103/FRNet
-- Paper: https://arxiv.org/abs/2312.04484
-- Licence: Apache 2.0
-- Checkpoints: hosted on Google Drive per the FRNet README; **not** included here.
-
-**CENet** (fallback segmenter, Phase 3)
-- Authors: Huixin Cheng et al.
-- Repository: https://github.com/huixiancheng/CENet
+**LSK3DNet** (production segmenter — see `docs/DECISIONS.md` D-022, `docs/MODEL_CARD.md`)
+- Authors: Tuo Feng, Wenguan Wang, Fan Ma, Yi Yang
+- Paper: "LSK3DNet: Towards Effective and Efficient 3D Perception with Large Sparse Kernels", CVPR 2024 —
+  https://arxiv.org/abs/2403.15173
+- Repository: https://github.com/FengZicai/LSK3DNet (vendored in-place at `LSK3DNet-main/`)
 - Licence: MIT
-- Checkpoints: hosted on Google Drive; **not** included here.
+- Checkpoint: hosted per the upstream README's Model Zoo link; **not** included here — see
+  `docs/MODEL_CARD.md` for the exact filename and SHA-256 verification command.
 
-**SalsaNext** (fallback segmenter, Phase 3)
-- Authors: Tiago Cortinhal et al.
-- Repository: https://github.com/TiagoCortinhal/SalsaNext
-- Licence: MIT (check repo for current status)
-- Checkpoints: check repository; **not** included here.
+**Range-view candidates** (SalsaNext / CENet / RangeNet++ — documented only as the original Model Selection
+Gate's comparison set, superseded by LSK3DNet per D-022; not used in production)
+- SalsaNext — https://github.com/TiagoCortinhal/SalsaNext — MIT
+- CENet — https://github.com/huixiancheng/CENet — MIT
+- RangeNet++ (`lidar-bonnetal`) — https://github.com/PRBonn/lidar-bonnetal — MIT
 
 ---
 
